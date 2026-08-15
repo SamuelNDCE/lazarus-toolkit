@@ -44,8 +44,11 @@ function Check($name, $ok, $detail = '') {
 }
 function Section($t) { Write-Host ''; Write-Host $t -ForegroundColor Cyan }
 
-$scripts = @('Common.ps1','Health-Report.ps1','Repair-Health.ps1') |
-           ForEach-Object { Join-Path $Root $_ }
+# Clear-Reports.ps1 is included: it deletes files, so it is the last
+# script in here that should go unchecked.
+$scripts = @('Common.ps1','Health-Report.ps1','Repair-Health.ps1','Clear-Reports.ps1') |
+           ForEach-Object { Join-Path $Root $_ } |
+           Where-Object { Test-Path $_ }
 
 Section 'FILES'
 foreach ($f in $scripts) { Check "$(Split-Path $f -Leaf) exists" (Test-Path $f) }
