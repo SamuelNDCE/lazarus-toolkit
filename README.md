@@ -16,7 +16,7 @@ an actual computer.
 from. It is the only thing you need to remember.
 
 ```powershell
-git clone https://github.com/perpetual-technologies/lazarus-toolkit.git
+git clone https://github.com/SamuelNDCE/lazarus-toolkit.git
 cd lazarus-toolkit
 .\Start.bat
 ```
