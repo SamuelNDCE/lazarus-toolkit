@@ -243,7 +243,7 @@ $Tasks = @(
     # is the only one of the two that checks the store itself.
     [pscustomobject]@{ Key='D'; On=$true;  Changes=$false; Time='nothing extra, it removes a step'; Low=0; High=0
         Name='    ^ skip DISM unless SFC finds damage (faster, default)'
-        Desc='A sub-option of the repair above, not a repair of its own, and it does nothing unless that one is on. ON by default, because DISM adds 15 to 45 minutes and a clean SFC usually means there is nothing for it to do. UNTICK it when a machine misbehaves but SFC insists it is fine: a damaged component store makes SFC report clean wrongly, and only DISM can see that.' }
+        Desc='A sub-option of the repair above, not a repair of its own. ON by default: DISM adds 15 to 45 minutes, it very often sits on one percentage for many minutes looking frozen, and a clean SFC usually means it has nothing to do anyway. UNTICK it when a machine misbehaves but SFC insists it is fine: a damaged store makes SFC report clean wrongly, and only DISM sees that.' }
 
     # 2 minutes on an SSD here. A large mechanical drive, or one that is
     # failing and retrying reads, is a different order of magnitude, so
@@ -1011,7 +1011,9 @@ if (On '1') {
     # a repair halfway through.
     Show-Box @(
         'SFC and DISM show their own percentage below.'
-        'It can sit on one number for several minutes. That is normal.'
+        'DISM especially will sit on one number for many minutes and'
+        'look frozen. That is normal and it happens on most machines.'
+        'If it really has stopped, this tool says so on its own.'
         'DO NOT CLOSE THIS WINDOW.'
     )
     Write-Host ''
