@@ -33,6 +33,70 @@ SFC and DISM system file repair, driver updates from Windows Update, disk checki
 testing, Windows Update repair, network stack reset, component store cleanup, and a driver
 installer dry run that proves a machine *can* install drivers without installing any.
 
+## Capabilities
+
+Everything below is built and running. The tick means it has been exercised on a real machine,
+not merely written.
+
+### Health and Handover Report (read-only, safe on any machine)
+
+| Section | What it establishes | Verified |
+|---|---|---|
+| Machine | Make, model, serial, BIOS version and age, CPU, GPU, motherboard | yes |
+| Windows activation | Licensed or not, and by which channel | yes |
+| Battery | Design vs full-charge capacity, wear percentage, cycle count | yes |
+| Storage | SMART data, power-on hours, reallocated sectors, SSD write life, free space | yes |
+| Memory | Installed sticks, speed, slots used | yes |
+| Drivers | Missing or broken devices **ranked by severity**, generic-vs-vendor drivers, driver ages | yes |
+| Security | Defender state, firewall profiles, BitLocker, registered antivirus, Absolute/Computrace | yes |
+| System state | Restore points, pending reboots, uptime | yes |
+| Installed software | Full program list, cross-checked against the registry | yes |
+| Windows Update history | Recent installs and failures | yes |
+| Verdict | Ready to hand over / usable with notes / not ready | yes |
+
+Outputs a `.txt` record and a `.md` copy for pasting into a ticket or handing to an AI.
+`-Unattended` surveys a machine and exits with no keypress.
+
+### Repair and Recovery (a menu; anything that changes the machine says so)
+
+| Repair | Verified |
+|---|---|
+| Repair system files: SFC, then DISM, then SFC | yes |
+| Skip DISM unless SFC finds damage (default, saves 10 to 40 min) | yes |
+| Check the disk for errors (online, no reboot) | yes |
+| Read the drive's own SMART health data | yes |
+| Sweep the event log for real faults | yes |
+| Reliability history: what has been failing, and when | yes |
+| Find devices with missing or broken drivers | yes |
+| Install driver updates from Windows Update | yes, 9 drivers installed |
+| Check whether this PC CAN install drivers (a dry run) | yes |
+| Also REPAIR what the disk check finds | not yet |
+| Clear out temp files | not yet |
+| Reclaim disk space from old Windows updates | yes |
+| Repair Windows Update | yes |
+| Reset the network stack | yes |
+| Test the RAM | not yet |
+
+Offers a restore point before anything that changes the machine. Driver installs delete their
+downloaded packages afterwards and leave the DriverStore intact, so a bad driver can still be
+rolled back.
+
+### Reliability
+
+| Capability | Verified |
+|---|---|
+| Timeout and spinner on every slow call | yes |
+| Stall watchdog on DISM and SFC (warns at 10 min, escalates at 25) | yes, caught a real 1-hour DISM hang |
+| Retry on transient Windows Update failures | yes |
+| QuickEdit disabled so a stray click cannot freeze the run | yes |
+| Internal tool errors recorded separately from findings about the PC | yes |
+| Runs unattended with no keypress | yes |
+
+### Launcher
+
+An HTA menu over roughly 40 third-party utilities (malware, disk, hardware, network, boot
+media). The utilities are **not** included here; see Licensing.
+
 ## Getting started
 
 ```powershell
