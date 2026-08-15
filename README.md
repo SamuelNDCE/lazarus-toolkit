@@ -91,9 +91,21 @@ shadowed the `.Keys` member, and it reported a clean project having examined not
 
 These are worth reading if you are modifying it, because most are scars.
 
-**Nothing silently gives up.** Every slow call has a visible timeout and announces when it
-stalls. A check that quietly returns nothing is worse than one that fails loudly, because
-you then act on a report with a hole in it.
+**Nothing silently gives up, and nothing runs silently.** Every slow call has a visible
+timeout and announces when it stalls. A check that quietly returns nothing is worse than one
+that fails loudly, because you then act on a report with a hole in it. `Tests/Run-Checks.ps1`
+enforces this: it fails the build if a slow call is added with no spinner, no announcement,
+and no progress of its own.
+
+**Anything that can wedge is watched.** `sfc` and `dism` must run bare to keep their own live
+percentage, so nothing can wrap them. A stall watch reads whether their log is still being
+written and warns at 10 minutes, escalating at 25 to "almost certainly stuck, Ctrl+C and
+reboot". Log silence is the signal, not CPU: DISM idles at 0% CPU while perfectly healthy.
+
+**Transient failures retry.** A Windows Update search that fails because WiFi blinked reads
+as "no drivers offered" on a machine with nine waiting. It retries three times, announcing
+each attempt, and gives up loudly. It never retries an empty result, because "nothing found"
+is a legitimate answer.
 
 **No question in the middle of a run.** A prompt underneath a wall of output is
 indistinguishable from a freeze. Questions are asked before work starts, or queued and

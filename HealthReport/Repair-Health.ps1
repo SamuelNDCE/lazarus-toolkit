@@ -907,44 +907,76 @@ LogOnly ('=' * 60)
 #  Log silence, not CPU, is the signal. DISM legitimately sits at low CPU
 #  while waiting on Windows Update, but a healthy run keeps writing.
 # =====================================================================
-function Start-DismWatchdog {
-    param([int]$WarnMinutes = 10, [int]$DeadMinutes = 25)
+function Start-StallWatch {
+    param(
+        [Parameter(Mandatory)][string]$LogPath,
+        [Parameter(Mandatory)][string]$Tool,
+        [int]$WarnMinutes = 10,
+        [int]$DeadMinutes = 25
+    )
     $ps = [PowerShell]::Create()
     [void]$ps.AddScript({
-        param($warnM, $deadM)
-        $log = Join-Path $env:WINDIR 'Logs\DISM\dism.log'
+        param($log, $tool, $warnM, $deadM)
         $lastWarn = 0
+        $lastSize = -1
         while ($true) {
             Start-Sleep -Seconds 30
             try {
                 if (-not (Test-Path $log)) { continue }
-                $age = [int]((Get-Date) - (Get-Item $log).LastWriteTime).TotalMinutes
-                if ($age -lt $warnM) { $lastWarn = 0; continue }
-                # Warn once when it goes quiet, then only when the picture
-                # actually changes, rather than nagging every 30 seconds.
+                $item = Get-Item $log -ErrorAction SilentlyContinue
+                if (-not $item) { continue }
+
+                # Size as well as timestamp. Some tools hold the log open
+                # and the modified time does not always move on a flush,
+                # so growth is the second opinion.
+                $grew = ($item.Length -ne $lastSize)
+                $lastSize = $item.Length
+                $age = [int]((Get-Date) - $item.LastWriteTime).TotalMinutes
+                if ($grew -or $age -lt $warnM) { $lastWarn = 0; continue }
+
+                # Warn once when it goes quiet, then again only when the
+                # picture changes, rather than nagging every 30 seconds.
                 if ($age -ge $deadM -and $lastWarn -lt $deadM) {
                     $lastWarn = $age
                     [Console]::WriteLine('')
-                    [Console]::WriteLine("    XX  DISM has written nothing for $age minutes. It is almost certainly stuck.")
+                    [Console]::WriteLine("    XX  $tool has written nothing for $age minutes. It is almost certainly stuck.")
                     [Console]::WriteLine('        This is a Windows fault, not a fault in this tool. Press Ctrl+C,')
                     [Console]::WriteLine('        reboot, and run this again. Nothing has been half-applied.')
                 } elseif ($age -ge $warnM -and $lastWarn -eq 0) {
                     $lastWarn = $age
                     [Console]::WriteLine('')
-                    [Console]::WriteLine("    !!  DISM has written nothing to its log for $age minutes.")
-                    [Console]::WriteLine('        It may still be working. If the percentage has not moved either,')
-                    [Console]::WriteLine('        give it until 25 minutes and then treat it as stuck.')
+                    [Console]::WriteLine("    !!  $tool has written nothing to its log for $age minutes.")
+                    [Console]::WriteLine('        It may still be working. If its percentage has not moved either,')
+                    [Console]::WriteLine("        give it until $deadM minutes and then treat it as stuck.")
                 }
             } catch { }
         }
     })
+    [void]$ps.AddArgument($LogPath)
+    [void]$ps.AddArgument($Tool)
     [void]$ps.AddArgument($WarnMinutes)
     [void]$ps.AddArgument($DeadMinutes)
     $handle = $ps.BeginInvoke()
     return [pscustomobject]@{ PS = $ps; Handle = $handle }
 }
 
-function Stop-DismWatchdog($w) {
+# Named wrappers, so a call site reads as what it is watching.
+function Start-DismWatchdog {
+    param([int]$WarnMinutes = 10, [int]$DeadMinutes = 25)
+    Start-StallWatch -LogPath (Join-Path $env:WINDIR 'Logs\DISM\dism.log') -Tool 'DISM' `
+                     -WarnMinutes $WarnMinutes -DeadMinutes $DeadMinutes
+}
+
+# SFC reports through CBS.log. It hangs less often than DISM but it does
+# happen, usually on a machine whose component store is already damaged,
+# which is exactly the machine this gets run on.
+function Start-SfcWatchdog {
+    param([int]$WarnMinutes = 15, [int]$DeadMinutes = 30)
+    Start-StallWatch -LogPath (Join-Path $env:WINDIR 'Logs\CBS\CBS.log') -Tool 'SFC' `
+                     -WarnMinutes $WarnMinutes -DeadMinutes $DeadMinutes
+}
+
+function Stop-StallWatch($w) {
     if (-not $w) { return }
     try { $w.PS.Stop() }    catch { }
     try { $w.PS.Dispose() } catch { }
@@ -976,7 +1008,9 @@ if (On '1') {
     $t0 = Get-Date
     # BARE. No pipeline, no redirect, no spinner. See the header: any of
     # those and the live percentage is gone.
+    $sfcW = Start-SfcWatchdog
     & sfc.exe /scannow
+    Stop-StallWatch $sfcW
     Write-Host ''
     # The timing line goes out FIRST, before the log read, so the console
     # never goes quiet in the gap between sfc.exe exiting (which takes
@@ -1031,7 +1065,7 @@ if (On '1') {
         # BARE.
         & dism.exe /Online /Cleanup-Image /RestoreHealth
         $dismRc = $LASTEXITCODE
-        Stop-DismWatchdog $wd
+        Stop-StallWatch $wd
         Write-Host ''
         Info "DISM finished at $(Get-Date -f 'HH:mm:ss'), took $(Mins $t0)"
         Add-Detail 'DISM RestoreHealth, from dism.log:' (Get-DismDetail)
@@ -1045,7 +1079,9 @@ if (On '1') {
         Work 'SFC pass 2, now with a repaired source to copy from'
         $t0 = Get-Date
         # BARE.
+        $sfcW = Start-SfcWatchdog
         & sfc.exe /scannow
+        Stop-StallWatch $sfcW
         Write-Host ''
         Info "SFC pass 2 finished at $(Get-Date -f 'HH:mm:ss'), took $(Mins $t0)"
         $sr2  = Get-CbsSrLines
@@ -1599,7 +1635,12 @@ if (On 'U') {
             try {
                 $s = New-Object -ComObject Microsoft.Update.Session
                 Work 'searching again to get the download handles (warm, so quicker)'
-                $r = $s.CreateUpdateSearcher().Search("IsInstalled=0 and Type='Driver'")
+                # Retried: this is the step that fails when WiFi drops for
+                # a moment, and a failure here reads as "no drivers
+                # offered" on a machine that has nine waiting.
+                $r = Invoke-WithRetry -Label 'the Windows Update search' -Work {
+                    $s.CreateUpdateSearcher().Search("IsInstalled=0 and Type='Driver'")
+                }
 
                 $coll = New-Object -ComObject Microsoft.Update.UpdateColl
                 foreach ($u in $r.Updates) {
@@ -1839,7 +1880,7 @@ if (On '7') {
     $wd = Start-DismWatchdog
     # BARE.
     & dism.exe /Online /Cleanup-Image /StartComponentCleanup
-    Stop-DismWatchdog $wd
+    Stop-StallWatch $wd
     Write-Host ''
     Info "took $(Mins $t0)"
     $freed = [math]::Round(((Get-PSDrive C).Free - $before) / 1GB, 2)

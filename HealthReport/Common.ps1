@@ -556,6 +556,47 @@ function Stop-ProgressTicker($t) {
     try { [Console]::Write("`r" + (' ' * 78) + "`r") } catch { }
 }
 
+# ---------------------------------------------------------------------
+#  RETRY
+#
+#  For work that fails for a reason that will not still be true in ten
+#  seconds: a Windows Update search on a laptop whose WiFi has just come
+#  back, a service that is mid-restart. Left alone these produce a hard
+#  "no driver updates offered", which is indistinguishable from a machine
+#  that genuinely has none.
+#
+#  Deliberately narrow. It retries only when the work THREW, never when
+#  it returned an empty result, because "nothing found" is a legitimate
+#  answer and retrying it three times just wastes a minute confirming it.
+#
+#  Every attempt is announced. A tool that silently retries looks like a
+#  tool that is hanging, which is the thing this whole file exists to
+#  avoid.
+# ---------------------------------------------------------------------
+function Invoke-WithRetry {
+    param(
+        [Parameter(Mandatory)][scriptblock]$Work,
+        [string]$Label = 'the operation',
+        [int]$Attempts = 3,
+        [int]$DelaySeconds = 10
+    )
+    for ($n = 1; $n -le $Attempts; $n++) {
+        try {
+            return & $Work
+        } catch {
+            if ($n -eq $Attempts) {
+                Write-Host "    !!   $Label failed $Attempts times, giving up: $($_.Exception.Message)" -ForegroundColor Yellow
+                if ($null -ne $Script:SpinLog) { [void]$Script:SpinLog.Add("  !!   $Label failed after $Attempts attempts") }
+                throw
+            }
+            Write-Host "    !!   $Label failed (attempt $n of $Attempts): $($_.Exception.Message)" -ForegroundColor Yellow
+            Write-Host "         Retrying in ${DelaySeconds}s. This is usually a network blip." -ForegroundColor DarkGray
+            if ($null -ne $Script:SpinLog) { [void]$Script:SpinLog.Add("  retry $n of $Attempts for $Label") }
+            Start-Sleep -Seconds $DelaySeconds
+        }
+    }
+}
+
 function Test-Glyph([char]$c) {
     try {
         $e = [Console]::OutputEncoding

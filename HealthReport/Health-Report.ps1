@@ -633,10 +633,17 @@ if ($bl) {
 # Absolute (formerly Computrace) lives in the firmware of many
 # ex-corporate Dell, HP and Lenovo laptops and can reinstall its agent
 # after a wipe. Worth knowing about on a machine going to a child.
-$abs = @()
-if (Get-Service -Name 'rpcnet','rpcnetp' -EA SilentlyContinue) { $abs += 'rpcnet service' }
-if (Test-Path 'HKLM:\SOFTWARE\Absolute')                       { $abs += 'HKLM\SOFTWARE\Absolute' }
-if (Test-Path "$env:WINDIR\System32\rpcnet.exe")               { $abs += 'rpcnet.exe' }
+# Get-Service queries the Service Control Manager, and a wedged SCM does
+# not error, it simply never answers. On a sick machine, which is what
+# this tool is for, that is a silent hang with no heading printed yet.
+$abs = AsArray (Spin 'checking for Absolute/Computrace persistence' {
+    param($x)
+    $found = @()
+    if (Get-Service -Name 'rpcnet','rpcnetp' -ErrorAction SilentlyContinue) { $found += 'rpcnet service' }
+    if (Test-Path 'HKLM:\SOFTWARE\Absolute')                                { $found += 'HKLM\SOFTWARE\Absolute' }
+    if (Test-Path "$env:WINDIR\System32\rpcnet.exe")                        { $found += 'rpcnet.exe' }
+    $found
+} $null 30)
 if ($abs.Count) {
     Warn "Absolute/Computrace persistence detected ($($abs -join ', ')). Ex-corporate laptops ship with this; it can phone home and reinstall itself after a wipe. Disable it in BIOS if the previous owner has released the machine."
 } else { Good 'no Absolute/Computrace persistence found' }
@@ -704,14 +711,22 @@ $av = AsArray (Spin 'asking Security Center which antivirus is registered' {
     Get-CimInstance -Namespace root\SecurityCenter2 -ClassName AntiVirusProduct -ErrorAction SilentlyContinue
 } $null 60)
 if ($av) {
-    $installedNames = @()
-    foreach ($k in @('HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Uninstall',
-                     'HKLM:\SOFTWARE\WOW6432Node\Microsoft\Windows\CurrentVersion\Uninstall')) {
-        foreach ($i in (Get-ChildItem $k -EA SilentlyContinue)) {
-            $p = Get-ItemProperty $i.PSPath -EA SilentlyContinue
-            if ($p.DisplayName) { $installedNames += [string]$p.DisplayName }
+    # Both uninstall hives, one Get-ItemProperty per key. On a machine
+    # with hundreds of installed programs that is hundreds of registry
+    # reads and it is NOT instant, so it goes behind a spinner with a
+    # timeout like every other slow read here. It sat silent before.
+    $installedNames = AsArray (Spin 'cross-checking against installed programs' {
+        param($x)
+        $names = @()
+        foreach ($k in @('HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Uninstall',
+                         'HKLM:\SOFTWARE\WOW6432Node\Microsoft\Windows\CurrentVersion\Uninstall')) {
+            foreach ($i in (Get-ChildItem $k -ErrorAction SilentlyContinue)) {
+                $p = Get-ItemProperty $i.PSPath -ErrorAction SilentlyContinue
+                if ($p.DisplayName) { $names += [string]$p.DisplayName }
+            }
         }
-    }
+        $names
+    } $null 60)
 
     foreach ($a in $av) {
         # productState is a bitfield. Byte 2 bit 0x10 means real-time

@@ -63,7 +63,11 @@ foreach ($f in $scripts) {
 # Sub-checker output is captured and only shown when something fails, so
 # a clean run is a short readable list rather than three walls of detail.
 function Run-SubCheck($script, $files) {
-    $out = & (Join-Path $PSScriptRoot $script) -Files $files 2>&1
+    # 6>&1 as well as 2>&1: the sub-checkers report with Write-Host, which
+    # goes to the INFORMATION stream on PowerShell 5+, not to output or
+    # error. Capturing only 2>&1 left their own PASS lines printing to the
+    # console, so every result appeared twice.
+    $out = & (Join-Path $PSScriptRoot $script) -Files $files 2>&1 6>&1
     return [pscustomobject]@{ Code = $LASTEXITCODE; Output = $out }
 }
 
@@ -122,6 +126,17 @@ Check 'both tools load Common.ps1' (($health -match 'Common\.ps1') -and ($repair
 Check 'DISM watchdog wired to both DISM calls' `
       ((([regex]'Start-DismWatchdog').Matches($repair).Count) -ge 3)
 
+# Every bare external repair tool must have a stall watch over it. These
+# run with no pipeline so they keep their own live percentage, which
+# means nothing else can tell whether they are alive. DISM sat at 62.6%
+# for over an hour with zero CPU and an untouched log.
+$bare = @(([regex]'&\s+(sfc|dism)\.exe').Matches($repair) | ForEach-Object { $_.Value })
+$watchStarts = ([regex]'Start-(Sfc|Dism)Watchdog').Matches($repair).Count
+$watchStops  = ([regex]'Stop-StallWatch').Matches($repair).Count
+Check "every bare sfc/dism call has a stall watch ($($bare.Count) calls)" `
+      (($watchStarts -ge $bare.Count) -and ($watchStops -ge $bare.Count)) `
+      "$($bare.Count) bare calls, $watchStarts starts, $watchStops stops"
+
 $bat = Get-Content (Join-Path $Root 'Health-Report.bat') -Raw
 Check 'launcher prefers Windows Terminal, with a fallback' `
       (($bat -match 'wt\.exe') -and ($bat -match ':classic') -and ($bat -match 'WT_SESSION'))
@@ -154,6 +169,11 @@ if (-not $SkipSelfTest) {
     }
 }
 
+Section 'NOTHING RUNS SILENTLY'
+$r4 = Run-SubCheck 'check-progress.ps1' $scripts
+Check 'every slow call animates, announces itself, or draws its own progress' ($r4.Code -eq 0)
+if ($r4.Code -ne 0) { $r4.Output | ForEach-Object { Write-Host "        $_" -ForegroundColor DarkGray } }
+
 Section 'RENDERING'
 # Boxes are drawn by Show-Box, which sizes itself, but the padding
 # arithmetic was wrong by one when first written and every box came out
@@ -165,6 +185,16 @@ if (Test-Path $boxTest) {
           'run Tests\test-boxes.ps1 to see them'
 } else {
     Check 'box renderer test present' $false 'Tests\test-boxes.ps1 is missing'
+}
+
+Section 'RECOVERY'
+$retryTest = Join-Path $PSScriptRoot 'test-retry.ps1'
+if (Test-Path $retryTest) {
+    & $retryTest *>$null
+    Check 'retry recovers from a blip, gives up loudly, ignores an empty result' ($LASTEXITCODE -eq 0) `
+          'run Tests\test-retry.ps1 for the detail'
+} else {
+    Check 'retry test present' $false 'Tests\test-retry.ps1 is missing'
 }
 
 Write-Host ''
