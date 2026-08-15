@@ -33,7 +33,17 @@ param(
     # Genuinely huge files are still skipped, and always with the size
     # and the reason, so a gap in the collection is never silent.
     [int]$MaxFileMB = 20,
-    [int]$MaxFilesPerSource = 5
+    [int]$MaxFilesPerSource = 5,
+    # Override the manifest below. Only a test passes this: the real
+    # sources are absolute system paths, so without a seam the only way
+    # to exercise the copying, the cap and the dedup is to have
+    # Malwarebytes and a damaged component store on the machine running
+    # the tests. Same reasoning as Get-ReportPath's -PrimaryDir.
+    #
+    # NOT named $Sources. PowerShell variables are case insensitive, so a
+    # parameter by that name and the $sources below are the same variable
+    # and the manifest would silently overwrite whatever was passed in.
+    [array]$SourceList
 )
 
 . (Join-Path $PSScriptRoot 'Common.ps1')
@@ -56,7 +66,7 @@ function Say-Info($m) { Write-Host "         $m" -ForegroundColor DarkGray }
 # reported as absent rather than skipped in silence: "ADWCleaner left no
 # log" and "I did not look for ADWCleaner" are very different statements
 # to somebody reading this afterwards.
-$sources = @(
+$sources = if ($SourceList) { $SourceList } else { @(
     @{ Tool = 'SFC (CBS.log)';        Path = "$env:WINDIR\Logs\CBS\CBS.log";                            Note = 'what SFC actually found and repaired' }
     @{ Tool = 'DISM';                 Path = "$env:WINDIR\Logs\DISM\dism.log";                          Note = 'component store servicing' }
     @{ Tool = 'CBS folder';           Path = "$env:WINDIR\Logs\CBS";                    Filter = '*.log'; Note = 'older CBS logs' }
@@ -69,7 +79,7 @@ $sources = @(
     @{ Tool = 'Win11Debloat';         Path = (Join-Path (Split-Path $PSScriptRoot -Parent) 'Win11Debloat\Logs'); Filter = '*'; Note = 'what was removed' }
     @{ Tool = 'BCUninstaller';        Path = "$env:LOCALAPPDATA\BCUninstaller";         Filter = '*.log'; Note = 'bulk uninstall record' }
     @{ Tool = 'Setup / SetupDiag';    Path = "$env:WINDIR\Logs\SetupDiag";              Filter = '*';     Note = 'failed feature updates' }
-)
+) }
 
 Clear-Host
 Write-Host ''

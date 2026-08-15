@@ -251,6 +251,16 @@ if (Test-Path $retryTest) {
     Check 'retry test present' $false 'Tests\test-retry.ps1 is missing'
 }
 
+Section 'COLLECTING OTHER TOOLS'' LOGS'
+$clTest = Join-Path $PSScriptRoot 'test-collectlogs.ps1'
+if (Test-Path $clTest) {
+    & $clTest *>$null
+    Check 'Collect-ToolLogs copies, caps, dedupes and leaves the machine alone' ($LASTEXITCODE -eq 0) `
+          'run Tests\test-collectlogs.ps1 for the detail'
+} else {
+    Check 'collect-logs test present' $false 'Tests\test-collectlogs.ps1 is missing'
+}
+
 Write-Host ''
 if ($fail -eq 0) { Write-Host 'ALL CHECKS PASSED' -ForegroundColor Green }
 else { Write-Host "$fail CHECK(S) FAILED" -ForegroundColor Red }
