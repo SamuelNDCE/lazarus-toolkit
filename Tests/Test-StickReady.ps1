@@ -119,6 +119,45 @@ Write-Host ("  note  {0} saved report(s) from {1} machine(s): {2}" -f $reports.C
 Write-Host '        These contain machine names, models and serial numbers. Fine on your' -ForegroundColor DarkGray
 Write-Host '        own stick, not fine anywhere public.' -ForegroundColor DarkGray
 
+Section 'CREDENTIALS ON THE STICK'
+# A stick that carries a working password is a different object to one
+# that does not, and "STICK IS READY. Safe to eject." must not be the
+# last thing said about it without mentioning that.
+#
+# This is NOT a failure. Storing the password was a deliberate choice so
+# a batch of laptops can be built without typing it each time. It is a
+# standing reminder of what is on the stick and what to do before it
+# leaves your hands, because that is the moment it stops being fine.
+$secretFiles = @(
+    @{ Path = Join-Path $root 'Setup\build-secrets.ps1'; What = 'the club account password, in plain text' }
+)
+$found = @($secretFiles | Where-Object { Test-Path $_.Path })
+if ($found.Count) {
+    foreach ($s in $found) {
+        Write-Host "  note  $($s.What)" -ForegroundColor Yellow
+        Write-Host "        $($s.Path)" -ForegroundColor DarkGray
+    }
+    Write-Host '        Anyone holding this stick can sign in to every laptop built' -ForegroundColor Yellow
+    Write-Host '        from it. Delete that file before lending or posting the stick;' -ForegroundColor Yellow
+    Write-Host '        the build then just asks for the password again.' -ForegroundColor Yellow
+} else {
+    Write-Host '  ok    no stored credentials: the build will ask for the password' -ForegroundColor Green
+}
+
+# The backstop, and the one that matters more: a credential pasted
+# somewhere it was never meant to go. build-secrets.ps1 is deliberate
+# and can be deleted in one action; a password copied into Config.ps1 or
+# a text file survives that deletion and nobody would know.
+$credPat = 'password\s*=\s*[''"][^''"]{6,}|ClubAccountPassword\s*=\s*[''"]'
+$strays = @(Get-ChildItem $root -Recurse -File -ErrorAction SilentlyContinue |
+            Where-Object { $_.Extension -in '.ps1','.bat','.txt','.json','.md' -and $_.Length -lt 2MB } |
+            Where-Object { $_.FullName -notmatch '\\Setup\\build-secrets\.ps1$' } |
+            Where-Object {
+                try { (Get-Content $_.FullName -Raw -ErrorAction Stop) -match $credPat } catch { $false }
+            })
+Check 'no credential pasted outside build-secrets.ps1' ($strays.Count -eq 0) `
+      (($strays | Select-Object -First 4 | ForEach-Object { $_.FullName }) -join '; ')
+
 Section 'IT CAN STILL BE WRITTEN TO'
 $probe = Join-Path $root ('.readycheck-' + [guid]::NewGuid().ToString('N').Substring(0, 8) + '.tmp')
 $wrote = $false
