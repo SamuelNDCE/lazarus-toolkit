@@ -94,7 +94,12 @@ if ($hits.Count) { Bad 'something credential-shaped' $hits }
 $allow = @(
     'Windows','Microsoft','Update','Defender','Explorer','PowerShell','Terminal','Google',
     'SFC','DISM','HWiNFO','KVRT','Ventoy','Picocrypt','WindTerm','Hiren','Lenovo','Realtek',
-    'Intel','MICRO','Spin','Box','ENTRY','Test','Tests','README','GitHub','Apache'
+    'Intel','MICRO','Spin','Box','ENTRY','Test','Tests','README','GitHub','Apache',
+    # Added as the backstop surfaced them. Every one of these was flagged
+    # for review and read by a human first, which is the point: the list
+    # grows deliberately, and a name that is genuinely a person never
+    # reaches it.
+    'Firefox','Malwarebytes','Rufus','BleachBit','TrustedInstaller','NuGet','Chrome'
 )
 # -CaseSensitive is load bearing. Select-String ignores case by default,
 # so [A-Z] happily matched "caller's" and "chkdsk's" and buried the one
