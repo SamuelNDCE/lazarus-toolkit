@@ -699,8 +699,8 @@ if ($pageFile) { Line 'Page file' "$([math]::Round($pageFile.AllocatedBaseSize/1
 # BUT "registered" IS NOT "installed". SecurityCenter2 lists products
 # that have REGISTERED with Windows Security Center, and an OEM trial
 # that was never activated, or a product that has been removed badly,
-# stays on that list. This report said "AV registered: McAfee" on
-# a client's laptop and Samuel went looking for McAfee to uninstall.
+# stays on that list. This report said "AV registered: McAfee" on a
+# client's laptop and sent us looking for McAfee to uninstall.
 # It was not installed.
 #
 # So decode productState, which says whether it is actually switched ON
@@ -766,8 +766,8 @@ if (-not $net.Count) { Fail 'no active network adapter. Driver missing, or the h
 # ------------------------------------------------- installed software
 # THIS IS THE LOG WE DID NOT HAVE.
 #
-# On a client's Vivobook, Malwarebytes found a bundled PUP browser
-# (OBBrowser) and this report had said nothing about it, because it
+# On one ex-corporate laptop, Malwarebytes found a bundled PUP browser
+# and this report had said nothing about it, because it
 # listed registered ANTIVIRUS and never listed installed PROGRAMS. An
 # inventory would have shown it sitting there, and it is also the record
 # you want when handing a machine over or comparing before and after.
@@ -831,7 +831,7 @@ else {
 }
 
 # ---------------------------------------------------- Windows Update
-# 161 of the 175 reliability events on a client's laptop came from the
+# 161 of the 175 reliability events on one client laptop came from the
 # Windows Update client, and this report had no way to say what they
 # were. The install history is where "why does this machine keep
 # failing updates" is actually answered.
