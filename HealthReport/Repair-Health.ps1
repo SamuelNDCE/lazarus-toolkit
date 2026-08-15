@@ -210,9 +210,15 @@ function Verdict($m) { [void]$verdicts.Add($m) }
 # Changes = $true means it modifies the machine. Those are off by
 # default and trigger the restore-point offer.
 $Tasks = @(
-    [pscustomobject]@{ Key='1'; On=$true;  Changes=$true;  Time='about 2 to 6 min, far longer if DISM runs'; Low=2; High=6
+    # Low stays at the measured best case, High covers the worst seen in
+    # practice. SFC is not a fixed-cost scan: it took 1.4 and 2.7 minutes
+    # on two fast PCs here, and half an hour is normal on a slow drive or
+    # a badly damaged install. Pricing it at the fast case makes the tool
+    # look broken when it is merely being honest, so the range is wide on
+    # purpose.
+    [pscustomobject]@{ Key='1'; On=$true;  Changes=$true;  Time='about 2 to 30 minutes, the top end if DISM runs'; Low=2; High=30
         Name='Repair system files: SFC, then DISM, then SFC'
-        Desc='The standard repair. SFC checks Windows'' own files against the component store, and on a healthy machine that is all that runs: measured at 1.4 and 2.7 minutes on two real PCs. DISM repairs the store itself and is SKIPPED unless SFC finds damage, because it adds 15 to 45 minutes. Untick the sub-option below to force it, which is right when a machine misbehaves but SFC insists it is fine.' }
+        Desc='The standard repair. SFC checks Windows'' own files against the component store, and on a healthy machine that is all that runs: 1.4 and 2.7 min on two fast PCs, half an hour on a slow or damaged one. DISM repairs the store itself and is SKIPPED unless SFC finds damage, because it adds 15 to 45 minutes. Untick the sub-option below to force it when a machine misbehaves but SFC insists it is fine.' }
 
     # Reads as a sub-option of the line above, because that is exactly what
     # it is: it changes how that repair behaves and does nothing on its
@@ -228,7 +234,7 @@ $Tasks = @(
     # Time is phrased to read correctly after the word "takes", which the
     # detail pane prefixes. "saves 10 to 40 min" rendered as "takes saves
     # 10 to 40 min".
-    # ON by default. DISM adds 10 to 40 minutes and most of the time SFC
+    # ON by default. DISM adds 15 to 45 minutes and most of the time SFC
     # coming back clean means there is nothing for it to do, so paying
     # that on every machine is not worth it. Untick it when a machine
     # misbehaves but SFC insists it is fine, which is the case a clean
@@ -239,9 +245,12 @@ $Tasks = @(
         Name='    ^ skip DISM unless SFC finds damage (faster, default)'
         Desc='A sub-option of the repair above, not a repair of its own, and it does nothing unless that one is on. ON by default, because DISM adds 15 to 45 minutes and a clean SFC usually means there is nothing for it to do. UNTICK it when a machine misbehaves but SFC insists it is fine: a damaged component store makes SFC report clean wrongly, and only DISM can see that.' }
 
-    [pscustomobject]@{ Key='2'; On=$true;  Changes=$false; Time='about 1 to 5 minutes';   Low=1;  High=5
+    # 2 minutes on an SSD here. A large mechanical drive, or one that is
+    # failing and retrying reads, is a different order of magnitude, so
+    # the high bound is set for that machine rather than this one.
+    [pscustomobject]@{ Key='2'; On=$true;  Changes=$false; Time='about 1 to 15 minutes, longer on a slow disk'; Low=1;  High=15
         Name='Check the disk for errors (online, no reboot)'
-        Desc='chkdsk /scan. Finds filesystem corruption while Windows is running. Reports only, it does not fix, so nothing can go wrong.' }
+        Desc='chkdsk /scan. Finds filesystem corruption while Windows is running. Reports only, it does not fix, so nothing can go wrong. Two minutes on an SSD, considerably longer on a big mechanical drive, and slowest of all on a drive that is failing and retrying every bad read.' }
 
     [pscustomobject]@{ Key='3'; On=$true;  Changes=$false; Time='a few seconds';          Low=0;  High=1
         Name='Read the drive''s own SMART health data'
@@ -259,7 +268,10 @@ $Tasks = @(
         Name='Find devices with missing or broken drivers'
         Desc='Lists only genuine driver faults, not devices someone has simply switched off.' }
 
-    [pscustomobject]@{ Key='U'; On=$false; Changes=$true;  Time='about 1 to 8 minutes'; Low=1; High=8
+    # 1.4 minutes for 9 drivers including a 49 MB download, on a fast
+    # connection. The high bound is for a machine that has not been
+    # updated in years on a slow line, which is most of them.
+    [pscustomobject]@{ Key='U'; On=$false; Changes=$true;  Time='about 1 to 15 minutes'; Low=1; High=15
         Name='Install driver updates from Windows Update'
         Desc='Asks Windows Update for driver updates and installs what it offers, using Windows'' own update service. Nothing comes from anywhere else and no manufacturer software is installed. Windows Update is deliberately conservative, so it will not always have the newest driver a vendor has published, but it is the only source that is both automatic and safe.' }
 
@@ -267,7 +279,10 @@ $Tasks = @(
         Name='Check whether this PC CAN install drivers (a dry run)'
         Desc='A dry run, for when you need to know a machine CAN install drivers before promising anyone it will. It does everything the real install does, including downloading the packages and confirming each arrived, then stops without installing. The downloads are deleted after, so it is safe on a PC you have no permission to change. If it fails it names the stage. Needs administrator.' }
 
-    [pscustomobject]@{ Key='F'; On=$false; Changes=$true;  Time='nothing extra unless the disk is dirty'; Low=0; High=3
+    # Zero on a clean disk, which is the usual case, so Low stays 0. The
+    # high bound follows the disk check above: the machines where this
+    # has anything to do are the slow and failing ones.
+    [pscustomobject]@{ Key='F'; On=$false; Changes=$true;  Time='nothing extra unless the disk is dirty'; Low=0; High=6
         Name='Also REPAIR what the disk check finds'
         Desc='Needs the disk check above, and switches it on for you. Per chkdsk''s own documentation the online scan QUEUES what it finds and /spotfix repairs that queue, so this is the second half of one operation, not a second scan. If damage is too deep to mend with Windows running, you are asked at the END whether to schedule a full offline repair. Back up anything irreplaceable first.' }
 
