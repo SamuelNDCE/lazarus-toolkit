@@ -623,7 +623,24 @@ function eject(){
         + "\n\nClose them, then press Eject again.");
     return;
   }
-  if (!confirm("Eject " + drv + " ?\n\nLazarus will close, then the drive is released.")) { return; }
+  // Tell them to check in Windows afterwards as well.
+  //
+  // This eject asks the shell to release the drive and reports what it
+  // was told. What it CANNOT see is a handle opened by something outside
+  // the list it checks: an antivirus mid-scan, an indexer, a file still
+  // open in an editor. Any of those make the shell report success while
+  // the volume is not actually safe to pull.
+  //
+  // Belt and braces is the honest advice for removable media: use this,
+  // then confirm with Windows' own Safely Remove Hardware. Losing a
+  // stick full of client reports to a half-finished write is not worth
+  // trusting a single signal.
+  if (!confirm("Eject " + drv + " ?\n\n"
+      + "Lazarus will close, then the drive is released.\n\n"
+      + "RECOMMENDED: after this finishes, also use Windows' own\n"
+      + "Safely Remove Hardware icon in the system tray as a second\n"
+      + "check before pulling the stick out. This cannot see every\n"
+      + "handle another program might still be holding.")) { return; }
 
   var b = document.getElementById("ejectbtn");
   b.className = "busy"; b.innerHTML = "OUT";

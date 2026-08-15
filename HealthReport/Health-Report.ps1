@@ -946,51 +946,6 @@ if ($ourFaults.Count) {
     Write-Host '     findings above are unaffected.)' -ForegroundColor DarkGray
 }
 
-# WHERE THE REPORT GOES.
-#
-# Next to the tool first, because on a USB stick that means every machine
-# you touch collects in one folder, which is the whole point of carrying
-# it. That is also "where it is installed" when somebody has copied this
-# onto a PC.
-#
-# But that location is not always writable. Run from Program Files, from
-# a read-only stick, or from a network share, and Set-Content throws. The
-# old code caught that and printed "could not save", and the entire
-# report was then LOST: minutes of checks on somebody's machine, gone,
-# with the console about to close.
-#
-# So it falls back, in order of how findable the file is afterwards, and
-# always says exactly where the file went. A report saved somewhere
-# unexpected is recoverable; a report not saved at all is not.
-function Get-ReportPath {
-    # -PrimaryDir rather than reading $PSScriptRoot inside: a function
-    # that reaches for an automatic variable cannot be tested, because
-    # $PSScriptRoot is whatever the CALLER's file is. The first test of
-    # this reported a failure that was purely an artefact of that.
-    param(
-        [string]$Leaf,
-        [string]$PrimaryDir = $PSScriptRoot
-    )
-    $candidates = @(
-        $PrimaryDir                                                      # beside the tool
-        (Join-Path ([Environment]::GetFolderPath('MyDocuments')) 'Lazarus Reports')
-        (Join-Path ([Environment]::GetFolderPath('Desktop')) 'Lazarus Reports')
-        $env:TEMP                                                        # last resort
-    )
-    foreach ($dir in $candidates) {
-        if (-not $dir) { continue }
-        try {
-            if (-not (Test-Path $dir)) { New-Item -ItemType Directory -Path $dir -Force -ErrorAction Stop | Out-Null }
-            # Prove it is writable rather than assuming. A folder can
-            # exist and still refuse a write.
-            $probe = Join-Path $dir ('.w' + [guid]::NewGuid().ToString('N').Substring(0, 6))
-            [System.IO.File]::WriteAllText($probe, 'x')
-            [System.IO.File]::Delete($probe)
-            return (Join-Path $dir $Leaf)
-        } catch { continue }
-    }
-    return $null
-}
 
 # ONE FILE, not two.
 #

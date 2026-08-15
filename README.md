@@ -203,6 +203,76 @@ The tick means it has been exercised on a real machine, not merely written.
 
 ---
 
+## Adding your own tools
+
+The launcher is a single file, `Lazarus.hta`, and the tool list is a plain array inside it. To
+add anything you already use:
+
+**1. Put the tool in `Tools\<Name>\`.** Portable builds work best, since nothing is installed.
+
+**2. Add one entry to the array in `Lazarus.hta`.** Copy the shape of an existing one:
+
+```javascript
+["Your Tool","Tools\\YourTool\\yourtool.exe","One line on what it is for",
+ "The longer description shown when this row is highlighted. Say what it actually does and when you would reach for it.","",""],
+```
+
+| Field | What it is |
+|---|---|
+| 1 | Name shown in the list |
+| 2 | Path from the stick root, with `\\` doubled |
+| 3 | Short purpose, **44 characters max** |
+| 4 | Full description, **269 characters max** |
+| 5 | Tag: `AV` if antivirus will flag it, `boot` for ISOs, `temp` for one-offs, else `""` |
+| 6 | Row class: `t-dang` (red) or `t-warn` (amber) for anything risky, else `""` |
+
+**3. Optionally add a 48x48 PNG** to `Icons\` and map it in the icon list further down the same
+file: `"Your Tool":"yourtool",`
+
+**4. Check it before trusting it:**
+
+```powershell
+node Docs\validate.js .
+```
+
+That verifies every path exists, every icon resolves, and no field is over length. It also
+lists tool folders present on disk but missing from the launcher, which catches the case where
+you copied a tool in and forgot the entry.
+
+## Collecting the logs other tools leave behind
+
+Your repairs write their own log. Everything else writes somewhere on the machine you are
+fixing: Malwarebytes under `ProgramData`, ADWCleaner at the root of `C:`, SFC into `CBS.log`,
+DISM into `dism.log`. Finish a job and the evidence is scattered across five directories on a
+PC you are about to hand back.
+
+```powershell
+.\HealthReport\Collect-ToolLogs.ps1 -WhatIfOnly   # show what it would take
+.\HealthReport\Collect-ToolLogs.ps1               # copy it
+```
+
+It copies them into one dated folder next to the report, with an `index.md` saying what was
+found **and what was not** — absence is a finding, since it usually means that tool was never
+run. It only ever copies; the machine is left exactly as it was. Files over 20 MB are skipped
+with the size and the reason stated.
+
+## Ejecting safely
+
+Use the **eject button** in the launcher. It checks nothing is still running from the stick,
+names anything that is, and releases the drive.
+
+**Then use Windows' own Safely Remove Hardware as a second check.** The launcher's eject can
+only see the handles it knows to look for; an antivirus mid-scan or a file still open
+elsewhere can make it report success while a write is unfinished. Two signals cost you three
+seconds. Losing a stick of client reports to a half-finished write does not.
+
+```powershell
+.\Tests\Test-StickReady.ps1 -Drive D:
+```
+
+That is the fuller check before you walk away with it: volume health, every script parses,
+every launcher target exists, nothing left behind, and the stick still takes a write.
+
 ## Checks
 
 ```powershell

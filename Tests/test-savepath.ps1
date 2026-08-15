@@ -3,7 +3,10 @@
 # so this tests the shipped function, not a copy of it.
 param([string]$Root)
 if (-not $Root) { $Root = Join-Path (Split-Path $PSScriptRoot -Parent) 'HealthReport' }
-$src = Join-Path $Root 'Health-Report.ps1'
+# Common.ps1, not Health-Report.ps1. Get-ReportPath moved there so
+# Collect-ToolLogs could use it too, and this test kept reading the old
+# location and failing.
+$src = Join-Path $Root 'Common.ps1'
 $ast = [System.Management.Automation.Language.Parser]::ParseFile($src, [ref]$null, [ref]$null)
 $fn = $ast.FindAll({ param($n) $n -is [System.Management.Automation.Language.FunctionDefinitionAst] -and $n.Name -eq 'Get-ReportPath' }, $true) | Select-Object -First 1
 if (-not $fn) { Write-Output 'FAIL: Get-ReportPath not found in the shipped script'; exit 1 }
