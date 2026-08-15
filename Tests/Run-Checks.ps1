@@ -190,6 +190,20 @@ if (Test-Path $boxTest) {
     Check 'box renderer test present' $false 'Tests\test-boxes.ps1 is missing'
 }
 
+Section 'NOTHING PERSONAL IS PUBLISHED'
+# Runs on every check, not just before a launch, because "remember to
+# look for names before going public" is exactly what failed: this repo
+# went public with a client's first name in five comments, and every
+# secrets scan beforehand passed.
+$privacyCheck = Join-Path $PSScriptRoot 'check-privacy.ps1'
+if (Test-Path $privacyCheck) {
+    $pv = & $privacyCheck -Root $Root 2>&1 6>&1
+    Check 'no people, machines, serials, personal paths or reports' ($LASTEXITCODE -eq 0)
+    if ($LASTEXITCODE -ne 0) { $pv | ForEach-Object { Write-Host "        $_" -ForegroundColor DarkGray } }
+} else {
+    Check 'privacy check present' $false 'Tests\check-privacy.ps1 is missing'
+}
+
 Section 'STALL WATCHDOGS'
 # Lifts the real watchdog functions out of the shipped file and calls
 # them. Their call sites live inside the SFC/DISM repair, which cannot be

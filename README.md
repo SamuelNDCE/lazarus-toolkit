@@ -12,17 +12,32 @@ an actual computer.
 
 ## Quick start
 
+**Double-click `Start.bat`.** That opens the launcher, which is the menu everything is run
+from. It is the only thing you need to remember.
+
 ```powershell
 git clone https://github.com/perpetual-technologies/lazarus-toolkit.git
 cd lazarus-toolkit
+.\Start.bat
+```
+
+`Start.bat` opens `Lazarus.hta`, the graphical launcher. From there you pick a tool and it
+runs. The launcher also lists around 40 third-party utilities, which are not bundled here (see
+Licensing), so a fresh clone shows those as missing until you add them; the health report and
+repair tools work immediately with nothing downloaded.
+
+Prefer to skip the launcher and go straight to the main tool:
+
+```powershell
 .\HealthReport\Health-Report.bat
 ```
 
-`Health-Report.bat` elevates itself, runs the read-only survey, then offers the repair menu.
-Nothing that changes a machine happens without you saying yes.
+That elevates itself, runs the read-only survey, then offers the repair menu. Nothing that
+changes a machine happens without you saying yes.
 
 | I want to | Run |
 |---|---|
+| **Open the launcher (start here)** | **`Start.bat`** |
 | Survey a machine, change nothing | `Health-Report.bat` and answer **n** at the end |
 | Survey it with no keypresses at all | `Health-Report.ps1 -Unattended` |
 | Go straight to repairs | `Repair-Health.ps1` |

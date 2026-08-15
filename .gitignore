@@ -60,3 +60,7 @@ desktop.ini
 *_rsa
 id_rsa*
 secrets.*
+
+# Real client names for Tests\check-privacy.ps1. Never committed: a
+# checker that hardcodes the names it protects has published them.
+Tests/private-names.txt

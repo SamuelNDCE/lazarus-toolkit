@@ -1,4 +1,4 @@
-﻿<#
+<#
 =======================================================================
  DEEPER HEALTH CHECK AND REPAIR
 
@@ -447,7 +447,7 @@ function Show-Picker {
         # the drawing runs past the bottom, the console scrolls, every
         # absolute row shifts up, $top points at the wrong line, and the
         # next keypress paints a whole fresh copy below the last one.
-        # Samuel got a screen full of stacked duplicate lists.
+        # The result was a screen full of stacked duplicate lists.
         #
         # It appeared the moment the list grew: three options were added
         # (force DISM, driver install, self-test) and 12 rows became 15,
@@ -1613,7 +1613,7 @@ if (On 'U') {
         # NO. Somebody who had already ticked "Install driver updates" in
         # the menu, watched it search, and read the list, then pressed the
         # one key that means "go ahead" everywhere else, and silently got
-        # "Skipped. Nothing was downloaded or installed." Samuel hit
+        # "Skipped. Nothing was downloaded or installed." We hit
         # exactly this on 2026-08-15 and reasonably read it as a crash.
         #
         # Consent was already given by ticking the menu item. This prompt
@@ -1660,7 +1660,7 @@ if (On 'U') {
                     # nothing, and own COM objects that cannot be moved
                     # onto a runspace, so the work cannot be handed off
                     # the way Spin does it. The animation goes on the
-                    # second thread instead. Samuel watched nine drivers
+                    # second thread instead. Nine drivers were watched
                     # download with a completely static screen and
                     # reasonably asked whether it was doing anything.
                     #

@@ -1,4 +1,4 @@
-﻿# =====================================================================
+# =====================================================================
 #  SHARED BY Health-Report.ps1 AND Repair-Health.ps1
 #
 #  Dot-sourced by both. Do not run it on its own, it only defines things.
@@ -492,7 +492,7 @@ function Show-Box {
 #  runspace, because it owns COM objects that do not cross that boundary.
 #  Windows Update's Download() and Install() are both like this: they
 #  take minutes, print nothing, and leave the screen frozen on the last
-#  line. Samuel watched nine drivers download with no sign of life.
+#  line. Nine drivers downloaded with no sign of life on screen.
 #
 #  So the ANIMATION goes on the second thread instead of the work. It
 #  reports through [Console] because a runspace made this way has no host
