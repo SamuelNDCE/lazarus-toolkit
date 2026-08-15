@@ -181,8 +181,8 @@ The tick means it has been exercised on a real machine, not merely written.
 | Reclaim disk space from old Windows updates | yes |
 | Repair Windows Update | yes |
 | Reset the network stack | yes |
-| Also REPAIR what the disk check finds | not yet |
-| Clear out temp files | not yet |
+| Clear out temp files | yes, freed 1.68 GB on a client machine |
+| Also REPAIR what the disk check finds | partly: it ran and correctly skipped `/spotfix` on a clean disk. The repair itself has not had a damaged volume to fix |
 | Test the RAM | not yet |
 
 ### Reliability
