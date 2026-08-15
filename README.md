@@ -111,13 +111,18 @@ machine. `-Confirm` performs it; `-Keep 'MYPC'` spares one machine's records.
 means every machine you touch collects in one place, which is the point.
 
 ```
-report-<MACHINE>-<date>_<time>.txt    the full record, including timings
-report-<MACHINE>-<date>_<time>.md     the readable copy
+report-<MACHINE>-<date>_<time>.md     the health report
 repairlog-<MACHINE>-<date>_<time>.txt written by the repair tool
 ```
 
-There is no HTML. The `.txt` is the complete record and is what the tools read back; the `.md`
-is the one to paste into a ticket, email to an owner, or hand to an AI to summarise.
+**One file per health report, in Markdown.** It opens in any editor, renders on GitHub,
+pastes into a ticket, and can be handed straight to an AI to summarise. Plain text does none
+of that better, and there is no HTML.
+
+It used to write a `.txt` as well, on the reasoning that the `.txt` held the check timings and
+was the machine-readable record. Neither survived scrutiny: nothing in the codebase ever read
+it back, and the timings now sit in a **Run detail** section at the bottom of the Markdown, so
+a single file loses nothing.
 
 ### Please read this bit
 

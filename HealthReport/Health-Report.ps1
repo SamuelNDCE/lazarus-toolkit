@@ -992,45 +992,46 @@ function Get-ReportPath {
     return $null
 }
 
-$stamp = Get-Date -f 'yyyy-MM-dd_HHmm'
-$file  = Get-ReportPath "report-$env:COMPUTERNAME-$stamp.txt"
+# ONE FILE, not two.
+#
+# This wrote a .txt and a .md of the same run. The .txt was the raw line
+# buffer; the .md was the same content with the progress lines stripped
+# and structure added. The justification for keeping both was that the
+# .txt held the timings, and that nothing else could read the .md.
+#
+# Neither held up. Nothing ever read the .txt back, in this tool or any
+# other on the stick: the only reference to it in the whole codebase was
+# the line that wrote it. And the timings now live in a "Run detail"
+# section at the bottom of the Markdown, so nothing is lost.
+#
+# Markdown over plain text because it opens in anything, renders on
+# GitHub and in any editor, pastes into a ticket, and can be handed
+# straight to an AI to summarise. Plain text does none of that better.
+$stamp   = Get-Date -f 'yyyy-MM-dd_HHmm'
+$verdictText = if ($bad.Count) { "NOT READY: $($bad.Count) fault(s) need attention" }
+               elseif ($warn.Count) { "USABLE, with $($warn.Count) thing(s) to note" }
+               else { 'READY TO HAND OVER' }
+
+$file = Get-ReportPath "report-$env:COMPUTERNAME-$stamp.md"
 if ($file) {
     try {
-        $out -join "`r`n" | Set-Content $file -Encoding UTF8
+        Write-MarkdownReport -Lines $out -Path $file -Verdict $verdictText -WarnCount $warn.Count -BadCount $bad.Count
         Write-Host ''
         Write-Host "    Saved: $file" -ForegroundColor DarkGray
         if ((Split-Path $file -Parent) -ne $PSScriptRoot) {
             Write-Host '           (the tool folder was not writable, so it went here instead)' -ForegroundColor DarkGray
         }
+        Write-Host '           Opens in anything. Paste it into a ticket, or hand it to an AI.' -ForegroundColor DarkGray
     } catch {
         Write-Host ''
         Write-Host "    Could not save the report: $($_.Exception.Message)" -ForegroundColor Red
+        Write-Host '    Everything found is on screen above. Scroll up before closing this.' -ForegroundColor Yellow
         $file = $null
     }
 } else {
     Write-Host ''
     Write-Host '    Could not find anywhere writable to save the report.' -ForegroundColor Red
     Write-Host '    Everything found is on screen above. Scroll up before closing this.' -ForegroundColor Yellow
-}
-
-# The readable copy. Failing to write it must never take the run down
-# with it: the .txt above is the record that matters and it is already
-# safely on disk by this point.
-$verdictText = if ($bad.Count) { "NOT READY: $($bad.Count) fault(s) need attention" }
-               elseif ($warn.Count) { "USABLE, with $($warn.Count) thing(s) to note" }
-               else { 'READY TO HAND OVER' }
-try {
-    # Beside the .txt, wherever that ended up, so the pair never get
-    # separated. Falls back the same way if the tool folder was read-only.
-    $mdLeaf = "report-$env:COMPUTERNAME-$stamp.md"
-    $mdFile = if ($file) { Join-Path (Split-Path $file -Parent) $mdLeaf } else { Get-ReportPath $mdLeaf }
-    if (-not $mdFile) { throw 'nowhere writable' }
-    Write-MarkdownReport -Lines $out -Path $mdFile -Verdict $verdictText -WarnCount $warn.Count -BadCount $bad.Count
-    Write-Host "    Saved: $mdFile" -ForegroundColor DarkGray
-    Write-Host '           (the readable copy: pastes into a ticket, or hand it to an AI)' -ForegroundColor DarkGray
-} catch {
-    Write-Host "    The Markdown copy could not be written: $($_.Exception.Message)" -ForegroundColor Yellow
-    Write-Host '           The .txt above is complete and unaffected.' -ForegroundColor DarkGray
 }
 
 # ---------------------------------------------------- repair and fix

@@ -442,10 +442,36 @@ function Write-MarkdownReport {
         }
     }
 
-    [void]$md.AppendLine()
-    [void]$md.AppendLine('---')
-    [void]$md.AppendLine()
-    [void]$md.AppendLine('The matching `.txt` next to this file is the full record of the run, including the progress and timing lines left out here.')
+    # RUN DETAIL, at the end, instead of in a second file.
+    #
+    # These are the "done reading the BIOS (0s)" and "STALLED" lines.
+    # They are noise while you are reading findings, which is why they are
+    # stripped from the body above, but they are the only record of how
+    # long each check took and which ones gave up.
+    #
+    # That was the entire justification for writing a separate .txt, and
+    # it does not justify a second file. It justifies a section at the
+    # bottom that nobody has to read.
+    $detail = @()
+    foreach ($raw in $Lines) {
+        if ($null -eq $raw) { continue }
+        $t = $raw.TrimEnd()
+        if ($t -match '^\s*(done|\.\.)\s+' -or $t -cmatch 'STALL|timed out|gave up after') {
+            $detail += $t.Trim()
+        }
+    }
+    if ($detail.Count) {
+        [void]$md.AppendLine()
+        [void]$md.AppendLine('---')
+        [void]$md.AppendLine()
+        [void]$md.AppendLine('## Run detail')
+        [void]$md.AppendLine()
+        [void]$md.AppendLine('How long each check took, and any that gave up. Only worth reading when something looks wrong.')
+        [void]$md.AppendLine()
+        [void]$md.AppendLine('```')
+        foreach ($d in $detail) { [void]$md.AppendLine($d) }
+        [void]$md.AppendLine('```')
+    }
 
     Set-Content -Path $Path -Value $md.ToString() -Encoding UTF8
 }
