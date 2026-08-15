@@ -125,6 +125,69 @@ if ($unknown.Count) {
     $issues++
 }
 
+# 8. GIT HISTORY. Everything above reads the working tree, and the
+#    working tree is not what is published: a clone carries every commit
+#    ever made. Deleting a name from a file and committing the deletion
+#    leaves it in every earlier commit, fully readable with `git log -p`.
+#
+#    That is not hypothetical here. The client's name was removed from
+#    the source and this checker passed, while the name sat in eight
+#    published commits for a day. The working-tree scan was not wrong,
+#    it was answering a different question to the one that mattered.
+if (Get-Command git -ErrorAction SilentlyContinue) {
+    Push-Location $repo
+    $isRepo = (& git rev-parse --is-inside-work-tree 2>$null) -eq 'true'
+    if (-not $isRepo) {
+        Write-Host '  ..    history not checked: this is not a git repository' -ForegroundColor DarkGray
+    } else {
+        $revs = @(& git rev-list --all 2>$null)
+        if (-not $revs.Count) {
+            Write-Host '  ..    history not checked: no commits yet' -ForegroundColor DarkGray
+        } else {
+            # Built from the same sources as the working-tree scan, so the
+            # two can never drift apart and disagree about what counts.
+            $histPats = @(
+                '[A-Z]:\\Users\\[A-Za-z0-9_.-]+'
+                '\bDESKTOP-[A-Z0-9]{7}\b|\bLAPTOP-[A-Z0-9]{7}\b'
+                'ghp_|gho_|github_pat_|xox[baprs]-|AKIA[0-9A-Z]{16}|discord\.com/api/webhooks'
+            )
+            if (Test-Path $listPath) {
+                $n = @(Get-Content $listPath | ForEach-Object { $_.Trim() } |
+                       Where-Object { $_ -and $_ -notmatch '^#' })
+                if ($n.Count) { $histPats += (($n | ForEach-Object { [regex]::Escape($_) }) -join '|') }
+            }
+
+            $histHits = 0
+            foreach ($p in $histPats) {
+                # -I skips binaries, so the icons are not scanned as text.
+                # This file is excluded for the same reason the working-tree
+                # scan skips itself: it contains the patterns, so scanning it
+                # finds nothing but its own source. Without this the history
+                # check reported 12 commits of "credential-shaped" text, all
+                # of them the regex on line 86.
+                $found = @(& git grep -I -i -l -E -- $p $revs ':(exclude)Tests/check-privacy.ps1' 2>$null)
+                if ($found.Count) {
+                    $commits = @($found | ForEach-Object { ($_ -split ':')[0] } | Sort-Object -Unique)
+                    Write-Host "  ISSUE  a private pattern survives in git history: $($commits.Count) commit(s), $($found.Count) file(s)" -ForegroundColor Red
+                    foreach ($c in ($commits | Select-Object -First 4)) {
+                        Write-Host ("           {0}" -f (& git log --format='%h %s' -1 $c)) -ForegroundColor DarkGray
+                    }
+                    Write-Host '           Removing it from the working tree does NOT remove it from a clone.' -ForegroundColor DarkGray
+                    Write-Host '           The history has to be rewritten and the remote purged.' -ForegroundColor DarkGray
+                    $histHits++
+                }
+            }
+            if (-not $histHits) {
+                Write-Host "  PASS  git history clean across $($revs.Count) commit(s)" -ForegroundColor Green
+            }
+            $issues += $histHits
+        }
+    }
+    Pop-Location
+} else {
+    Write-Host '  ..    history not checked: git is not on PATH' -ForegroundColor DarkGray
+}
+
 if ($issues -eq 0) {
     Write-Host '  PASS  no people, machines, personal paths, reports or credentials' -ForegroundColor Green
 }
