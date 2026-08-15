@@ -310,8 +310,6 @@ var DATA = [
   "The full Southend Music Tech Clubs build: accounts, software, Chrome policy, AppLocker, auditing and the desktop shortcuts, in one run. About 25 minutes. Reads its settings from Setup\\Config.ps1. Temporary: delete the Setup folder when the batch is finished.","temp","t-warn"],
  ["Check Club Build","Setup\\Verify-Club.bat","Check a built laptop and repair what drifted",
   "Checks accounts, software, filtering DNS, lockdown, privacy, auditing and the desktop. Reports what has changed since the build and offers to put each one back. Read-only until you say yes.","temp",""],
- ["Fix WiFi","Setup\\Fix-WiFi.bat","Work out why a laptop is offline",
-  "Checks the driver, WLAN AutoConfig, radio state, power management, DHCP, MAC randomisation, leftover antivirus network filters and DNS, then reports which one is actually at fault. Fixes what it can. Runs straight through and only asks at the end.","temp",""],
  ["Copy Setup to a Laptop","Setup\\Make-Portable.bat","Put the build folder on the machine itself",
   "Copies the whole Setup folder to the laptop so the build can run without the stick plugged in, verifies the copy by file list and total size, and locks it down if it carries a Tailscale key.","temp",""]
 ]],
