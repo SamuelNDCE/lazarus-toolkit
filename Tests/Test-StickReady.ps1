@@ -78,14 +78,42 @@ $junk = @(Get-ChildItem $root -Recurse -File -ErrorAction SilentlyContinue |
           })
 Check 'no temp or backup files' ($junk.Count -eq 0) (($junk | Select-Object -First 5 | ForEach-Object { $_.Name }) -join ', ')
 
-# Reports and build logs are the operator's own records and belong here,
-# but they hold other people's machine names and serials, so they get
-# counted out loud rather than silently tolerated.
-$reports = @(Get-ChildItem $root -Recurse -File -ErrorAction SilentlyContinue |
-             Where-Object { $_.Name -match '^(report|repairlog)-' -or $_.FullName -match '\\Setup\\Logs\\' })
+# Anything carrying another machine's name. Counted out loud rather than
+# silently tolerated: these are the operator's own records and belong on
+# their own stick, but they hold other people's hostnames and serials.
+#
+# Matched by NAME AND BY CONTENT. An earlier version looked only for
+# `report-` and `repairlog-` prefixes plus one known folder, and missed
+# `wifi-<HOST>-*.txt`, `activity-<HOST>-*.txt`, a debloat log and two
+# registry backups, all of which named client machines. Any tool on the
+# stick can write a log, so the pattern cannot be a list of the ones
+# thought of in advance.
+$hostPat = '[A-Z][A-Z0-9]{5,}|DESKTOP-[A-Z0-9]{7}|LAPTOP-[A-Z0-9]{7}'
+$textExt = '.txt', '.log', '.md', '.csv', '.json', '.xml'
+
+# The prefix ALONE is not enough. Matching `^activity-` caught five of
+# Firefox's own `activity-stream.*.json` profile files and reported them
+# as client records. Every real one is <prefix>-<HOSTNAME>-<date>, so
+# require the date too: it is the part Firefox has no reason to have.
+$byName = @(Get-ChildItem $root -Recurse -File -ErrorAction SilentlyContinue |
+            Where-Object {
+                $_.Extension -in $textExt -and
+                ($_.Name -match '^(report|repairlog|wifi|activity)-.+-\d{4}-\d{2}-\d{2}' -or
+                 $_.FullName -match '\\Setup\\Logs\\')
+            })
+# Content is the backstop, restricted to text files so a binary cannot
+# produce a spurious hit the way Firefox's desktop-launcher.exe did.
+$byContent = @(Get-ChildItem $root -Recurse -File -ErrorAction SilentlyContinue |
+               Where-Object { $_.Extension -in $textExt -and $_.Length -lt 5MB } |
+               Where-Object {
+                   try { (Get-Content $_.FullName -Raw -ErrorAction Stop) -cmatch "\b(DESKTOP|LAPTOP)-[A-Z0-9]{7}\b" }
+                   catch { $false }
+               })
+$reports = @($byName + $byContent | Sort-Object FullName -Unique)
 $machines = @($reports | ForEach-Object {
-                  if ($_.Name -match '^(?:report|repairlog)-([^-]+)-') { $matches[1] }
+                  if ($_.Name -match '^(?:report|repairlog|wifi|activity)-(.+?)-\d{4}-\d{2}-\d{2}') { $matches[1] }
                   elseif ($_.Name -match '^([A-Za-z0-9\-]+)_\d{4}-\d{2}-\d{2}') { $matches[1] }
+                  else { '(by content)' }
               } | Sort-Object -Unique)
 Write-Host ("  note  {0} saved report(s) from {1} machine(s): {2}" -f $reports.Count, $machines.Count, ($machines -join ', ')) -ForegroundColor DarkGray
 Write-Host '        These contain machine names, models and serial numbers. Fine on your' -ForegroundColor DarkGray
