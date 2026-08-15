@@ -210,9 +210,9 @@ function Verdict($m) { [void]$verdicts.Add($m) }
 # Changes = $true means it modifies the machine. Those are off by
 # default and trigger the restore-point offer.
 $Tasks = @(
-    [pscustomobject]@{ Key='1'; On=$true;  Changes=$true;  Time='about 10 to 40 minutes'; Low=10; High=40
+    [pscustomobject]@{ Key='1'; On=$true;  Changes=$true;  Time='about 2 to 6 min, far longer if DISM runs'; Low=2; High=6
         Name='Repair system files: SFC, then DISM, then SFC'
-        Desc='The standard repair, and it runs all three passes every time. SFC checks Windows'' own files against the component store. DISM then repairs that store, because a clean SFC does not prove the machine is healthy: if the store is itself damaged, SFC compares Windows against a bad reference, finds no difference, and reports clean on a machine that plainly is not. SFC then runs again with a repaired source.' }
+        Desc='The standard repair. SFC checks Windows'' own files against the component store, and on a healthy machine that is all that runs: measured at 1.4 and 2.7 minutes on two real PCs. DISM repairs the store itself and is SKIPPED unless SFC finds damage, because it adds 15 to 45 minutes. Untick the sub-option below to force it, which is right when a machine misbehaves but SFC insists it is fine.' }
 
     # Reads as a sub-option of the line above, because that is exactly what
     # it is: it changes how that repair behaves and does nothing on its
@@ -237,9 +237,9 @@ $Tasks = @(
     # is the only one of the two that checks the store itself.
     [pscustomobject]@{ Key='D'; On=$true;  Changes=$false; Time='nothing extra, it removes a step'; Low=0; High=0
         Name='    ^ skip DISM unless SFC finds damage (faster, default)'
-        Desc='A sub-option of the repair above it, not a repair of its own, and it does nothing unless that one is on. ON by default, because DISM adds 10 to 40 minutes and a clean SFC usually means there is nothing for it to do. UNTICK it when a machine clearly misbehaves but SFC insists it is fine: SFC compares Windows against the component store, so if that store is itself damaged SFC finds no difference and reports clean, and DISM is the only one of the two that can see it.' }
+        Desc='A sub-option of the repair above, not a repair of its own, and it does nothing unless that one is on. ON by default, because DISM adds 15 to 45 minutes and a clean SFC usually means there is nothing for it to do. UNTICK it when a machine misbehaves but SFC insists it is fine: a damaged component store makes SFC report clean wrongly, and only DISM can see that.' }
 
-    [pscustomobject]@{ Key='2'; On=$true;  Changes=$false; Time='about 2 to 10 minutes';  Low=2;  High=10
+    [pscustomobject]@{ Key='2'; On=$true;  Changes=$false; Time='about 1 to 5 minutes';   Low=1;  High=5
         Name='Check the disk for errors (online, no reboot)'
         Desc='chkdsk /scan. Finds filesystem corruption while Windows is running. Reports only, it does not fix, so nothing can go wrong.' }
 
@@ -259,27 +259,27 @@ $Tasks = @(
         Name='Find devices with missing or broken drivers'
         Desc='Lists only genuine driver faults, not devices someone has simply switched off.' }
 
-    [pscustomobject]@{ Key='U'; On=$false; Changes=$true;  Time='about 2 to 20 minutes'; Low=2; High=20
+    [pscustomobject]@{ Key='U'; On=$false; Changes=$true;  Time='about 1 to 8 minutes'; Low=1; High=8
         Name='Install driver updates from Windows Update'
-        Desc='Asks Windows Update for driver updates and installs the ones it offers, using Windows'' own update service. Nothing is downloaded from anywhere else and no manufacturer software is installed. Windows Update is deliberately conservative, so it will not always have the newest driver a vendor has published, but it is the only source that is both automatic and safe. The report above tells you which devices are actually broken or on a generic driver.' }
+        Desc='Asks Windows Update for driver updates and installs what it offers, using Windows'' own update service. Nothing comes from anywhere else and no manufacturer software is installed. Windows Update is deliberately conservative, so it will not always have the newest driver a vendor has published, but it is the only source that is both automatic and safe.' }
 
-    [pscustomobject]@{ Key='S'; On=$false; Changes=$false; Time='about 1 to 5 minutes'; Low=1; High=5
+    [pscustomobject]@{ Key='S'; On=$false; Changes=$false; Time='under a minute, up to 3'; Low=0; High=3
         Name='Check whether this PC CAN install drivers (a dry run)'
-        Desc='A dry run, for when you want to know a machine can install drivers before you promise anyone it will. It does everything the real driver install does, including downloading the actual driver packages and confirming each one arrived, and then stops without installing any of them. Nothing is added to this PC and the downloaded files are deleted at the end, so it is safe on a machine you have not been given permission to change. If it passes, the real install will get at least as far. If it fails, it names which stage failed: no internet, a licence, or a broken Windows Update. NEEDS ADMINISTRATOR, because Windows Update will not download for a standard user.' }
+        Desc='A dry run, for when you need to know a machine CAN install drivers before promising anyone it will. It does everything the real install does, including downloading the packages and confirming each arrived, then stops without installing. The downloads are deleted after, so it is safe on a PC you have no permission to change. If it fails it names the stage. Needs administrator.' }
 
-    [pscustomobject]@{ Key='F'; On=$false; Changes=$true;  Time='about 1 to 5 minutes on top of the check'; Low=1; High=5
+    [pscustomobject]@{ Key='F'; On=$false; Changes=$true;  Time='nothing extra unless the disk is dirty'; Low=0; High=3
         Name='Also REPAIR what the disk check finds'
-        Desc='Needs the disk check above, and switches it on for you. Per chkdsk''s own documentation the online scan QUEUES what it finds and /spotfix repairs that queue, so this is the second half of one operation rather than a second scan. chkdsk is never run twice. If damage is too deep to mend with Windows running, you are asked at the END of the run whether to schedule a full offline repair. Back up anything irreplaceable first.' }
+        Desc='Needs the disk check above, and switches it on for you. Per chkdsk''s own documentation the online scan QUEUES what it finds and /spotfix repairs that queue, so this is the second half of one operation, not a second scan. If damage is too deep to mend with Windows running, you are asked at the END whether to schedule a full offline repair. Back up anything irreplaceable first.' }
 
-    [pscustomobject]@{ Key='T'; On=$false; Changes=$true;  Time='about 1 to 5 minutes'; Low=1; High=5
+    [pscustomobject]@{ Key='T'; On=$false; Changes=$true;  Time='under a minute on most machines'; Low=0; High=3
         Name='Clear out temp files'
         Desc='Empties the Windows and user temp folders, the Windows Update download cache, prefetch and the recycle bin. A full disk causes an enormous number of "it is broken" symptoms, and this is the safe part of freeing space.' }
 
-    [pscustomobject]@{ Key='7'; On=$false; Changes=$true;  Time='about 10 to 30 minutes'; Low=10; High=30
+    [pscustomobject]@{ Key='7'; On=$false; Changes=$true;  Time='a couple of minutes, up to 20 if neglected'; Low=1; High=20
         Name='Reclaim disk space from old Windows updates'
         Desc='DISM component store cleanup. Can free several GB on an old machine. Slow, and it holds the Windows servicing lock while it runs, so nothing can install meanwhile.' }
 
-    [pscustomobject]@{ Key='8'; On=$false; Changes=$true;  Time='about 2 to 5 minutes';   Low=2;  High=5
+    [pscustomobject]@{ Key='8'; On=$false; Changes=$true;  Time='under a minute, up to 3'; Low=0;  High=3
         Name='Repair Windows Update'
         Desc='For a machine stuck on "checking for updates" or failing with the same error forever. Stops the update services, sets aside the download cache so Windows rebuilds it, restarts them. Standard Microsoft-documented fix.' }
 

@@ -94,6 +94,16 @@ $repair = Get-Content (Join-Path $Root 'Repair-Health.ps1') -Raw
 $common = Get-Content (Join-Path $Root 'Common.ps1') -Raw
 $health = Get-Content (Join-Path $Root 'Health-Report.ps1') -Raw
 
+# The detail pane wraps a description into SIX lines at (width - 8)
+# characters. Anything past that is cut with no indication, so a
+# carefully written explanation can lose its last sentence on a narrow
+# window and nobody finds out. 78 columns is the narrowest the picker
+# runs at, giving 6 x 70 = 420 characters of room; 400 leaves margin.
+$descs = @(([regex]"Desc='((?:[^']|'')*)'").Matches($repair) | ForEach-Object { $_.Groups[1].Value })
+$tooLong = @($descs | Where-Object { $_.Length -gt 400 })
+Check "every task description fits the detail pane ($($descs.Count) tasks)" ($tooLong.Count -eq 0) `
+      $(if ($tooLong.Count) { "$($tooLong.Count) over 400 chars, longest $(($tooLong | Measure-Object Length -Maximum).Maximum)" })
+
 $keys = @(([regex]"Key='([^']+)'").Matches($repair) | ForEach-Object { $_.Groups[1].Value })
 $dupes = @($keys | Group-Object | Where-Object Count -gt 1)
 Check "menu keys unique ($($keys.Count) tasks)" ($dupes.Count -eq 0) `
