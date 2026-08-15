@@ -154,6 +154,19 @@ if (-not $SkipSelfTest) {
     }
 }
 
+Section 'RENDERING'
+# Boxes are drawn by Show-Box, which sizes itself, but the padding
+# arithmetic was wrong by one when first written and every box came out
+# ragged. This renders the real function and measures the result.
+$boxTest = Join-Path $PSScriptRoot 'test-boxes.ps1'
+if (Test-Path $boxTest) {
+    & $boxTest *>$null
+    Check 'every box renders as a true rectangle' ($LASTEXITCODE -eq 0) `
+          'run Tests\test-boxes.ps1 to see them'
+} else {
+    Check 'box renderer test present' $false 'Tests\test-boxes.ps1 is missing'
+}
+
 Write-Host ''
 if ($fail -eq 0) { Write-Host 'ALL CHECKS PASSED' -ForegroundColor Green }
 else { Write-Host "$fail CHECK(S) FAILED" -ForegroundColor Red }

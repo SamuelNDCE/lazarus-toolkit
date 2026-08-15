@@ -228,9 +228,16 @@ $Tasks = @(
     # Time is phrased to read correctly after the word "takes", which the
     # detail pane prefixes. "saves 10 to 40 min" rendered as "takes saves
     # 10 to 40 min".
-    [pscustomobject]@{ Key='D'; On=$false; Changes=$false; Time='nothing extra, it removes a step'; Low=0; High=0
-        Name='    ^ skip DISM unless SFC finds damage (faster)'
-        Desc='A sub-option of the repair above it, not a repair of its own, and it does nothing unless that one is on. By DEFAULT all three passes run every time. Tick this for the quick version: DISM and the second SFC are skipped whenever the first SFC comes back clean.' }
+    # ON by default. DISM adds 10 to 40 minutes and most of the time SFC
+    # coming back clean means there is nothing for it to do, so paying
+    # that on every machine is not worth it. Untick it when a machine
+    # misbehaves but SFC insists it is fine, which is the case a clean
+    # SFC cannot rule out: SFC compares Windows against the component
+    # store, so a damaged store makes it report clean wrongly, and DISM
+    # is the only one of the two that checks the store itself.
+    [pscustomobject]@{ Key='D'; On=$true;  Changes=$false; Time='nothing extra, it removes a step'; Low=0; High=0
+        Name='    ^ skip DISM unless SFC finds damage (faster, default)'
+        Desc='A sub-option of the repair above it, not a repair of its own, and it does nothing unless that one is on. ON by default, because DISM adds 10 to 40 minutes and a clean SFC usually means there is nothing for it to do. UNTICK it when a machine clearly misbehaves but SFC insists it is fine: SFC compares Windows against the component store, so if that store is itself damaged SFC finds no difference and reports clean, and DISM is the only one of the two that can see it.' }
 
     [pscustomobject]@{ Key='2'; On=$true;  Changes=$false; Time='about 2 to 10 minutes';  Low=2;  High=10
         Name='Check the disk for errors (online, no reboot)'
@@ -955,11 +962,11 @@ if (On '1') {
     # the percentage stalls on one number and that is normal, and do not
     # close the window. Those two are the ones that stop somebody killing
     # a repair halfway through.
-    Write-Host '    +--------------------------------------------------------------+' -ForegroundColor Yellow
-    Write-Host '    |  SFC and DISM show their own percentage below.                |' -ForegroundColor Yellow
-    Write-Host '    |  It can sit on one number for several minutes. That is normal.|' -ForegroundColor Yellow
-    Write-Host '    |  DO NOT CLOSE THIS WINDOW.                                    |' -ForegroundColor Yellow
-    Write-Host '    +--------------------------------------------------------------+' -ForegroundColor Yellow
+    Show-Box @(
+        'SFC and DISM show their own percentage below.'
+        'It can sit on one number for several minutes. That is normal.'
+        'DO NOT CLOSE THIS WINDOW.'
+    )
     Write-Host ''
     LogOnly '  SFC and DISM run bare so they draw their own live percentage.'
 
@@ -1007,8 +1014,8 @@ if (On '1') {
     # it would have told you something new.
     if ($sfc1 -ne 'clean' -or -not $skipUnlessDamaged) {
         if ($skipUnlessDamaged -eq $false -and $sfc1 -eq 'clean') {
-            Info 'SFC found nothing. Running DISM anyway, because a clean SFC cannot rule'
-            Info 'out a damaged component store. Untick that in the menu to skip this.'
+            Info 'SFC found nothing, but you unticked "skip DISM", so it runs anyway.'
+            Info 'That is the right call when a machine misbehaves and SFC says it is fine.'
         }
         Work 'DISM RestoreHealth: rebuilding the store SFC copies from'
         Write-Host ("           started at {0}" -f (Get-Date -f 'HH:mm:ss')) -ForegroundColor DarkGray
@@ -1580,10 +1587,13 @@ if (On 'U') {
         $answer = Read-Host '    Install these driver updates now? [Y/n]'
         if ($answer -notmatch '^\s*n') {
             Write-Host ''
-            Write-Host '    +--------------------------------------------------------------+' -ForegroundColor Yellow
-            Write-Host '    |  DOWNLOADING AND INSTALLING DRIVERS. DO NOT CLOSE THIS.      |' -ForegroundColor Yellow
-            Write-Host '    |  Each driver is named below as it is installed.               |' -ForegroundColor Yellow
-            Write-Host '    +--------------------------------------------------------------+' -ForegroundColor Yellow
+            # Self-sizing. The hand-typed version had a 62 character
+            # border over a 64 character line and the right edge stepped
+            # out mid-box.
+            Show-Box @(
+                'DOWNLOADING AND INSTALLING DRIVERS. DO NOT CLOSE THIS.'
+                'Each driver is named below as it is installed.'
+            )
             Write-Host ''
             $t0 = Get-Date
             try {
@@ -1603,17 +1613,34 @@ if (On 'U') {
                 if (-not $coll.Count) {
                     Info 'nothing left to install, the list changed between the two searches'
                 } else {
+                    # A SPINNER OVER BOTH BLOCKING CALLS.
+                    #
+                    # Download() and Install() each take minutes, print
+                    # nothing, and own COM objects that cannot be moved
+                    # onto a runspace, so the work cannot be handed off
+                    # the way Spin does it. The animation goes on the
+                    # second thread instead. Samuel watched nine drivers
+                    # download with a completely static screen and
+                    # reasonably asked whether it was doing anything.
+                    #
+                    # The download ticker reads the actual cache size, so
+                    # it reports MB landing on disk rather than only a
+                    # clock ticking.
                     Work "downloading $($coll.Count) driver(s)"
                     $d = $s.CreateUpdateDownloader()
                     $d.Updates = $coll
-                    $dr = $d.Download()
+                    $tick = Start-ProgressTicker "downloading $($coll.Count) driver(s)" -WatchDownloadCache
+                    try   { $dr = $d.Download() }
+                    finally { Stop-ProgressTicker $tick }
                     if ($dr.ResultCode -eq 2) { Good 'download complete' }
                     else { Warn "download finished with result code $($dr.ResultCode). Carrying on to install what did arrive." }
 
                     Work "installing $($coll.Count) driver(s)"
                     $i = $s.CreateUpdateInstaller()
                     $i.Updates = $coll
-                    $ir = $i.Install()
+                    $tick = Start-ProgressTicker "installing $($coll.Count) driver(s), each is named below as it finishes"
+                    try   { $ir = $i.Install() }
+                    finally { Stop-ProgressTicker $tick }
 
                     # Per update, not just an overall code. "Some drivers
                     # failed" with no names is useless to whoever reads

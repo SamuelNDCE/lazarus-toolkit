@@ -18,7 +18,16 @@ if %errorlevel% equ 0 goto :run
 
 :: Ask for admin, and if Windows refuses, say so rather than closing an
 :: empty window, which is indistinguishable from a broken script.
-powershell -NoProfile -Command "try { Start-Process -FilePath '%~f0' -Verb RunAs -ErrorAction Stop } catch { exit 1 }"
+::
+:: %* is forwarded through the elevation as well, or a switch given to
+:: this file is thrown away the moment it relaunches itself as admin, and
+:: the flag silently does nothing. -ArgumentList is only added when there
+:: are arguments, because an empty one makes Start-Process fail.
+if "%~1"=="" (
+    powershell -NoProfile -Command "try { Start-Process -FilePath '%~f0' -Verb RunAs -ErrorAction Stop } catch { exit 1 }"
+) else (
+    powershell -NoProfile -Command "try { Start-Process -FilePath '%~f0' -ArgumentList '%*' -Verb RunAs -ErrorAction Stop } catch { exit 1 }"
+)
 if %errorlevel% equ 0 exit /b 0
 echo.
 echo   ------------------------------------------------------------
@@ -50,11 +59,15 @@ if defined WT_SESSION goto :classic
 where wt.exe >nul 2>&1
 if errorlevel 1 goto :classic
 
-start "" wt.exe --title "Health Report and Repair" powershell -NoProfile -ExecutionPolicy Bypass -File "%~dp0Health-Report.ps1"
+:: %* forwards whatever was passed to this file, so -Unattended actually
+:: reaches the script. Without it the switch was accepted, ignored, and
+:: the run then sat forever on "Press Enter to close": a scheduled task
+:: that never finishes and gives no clue why.
+start "" wt.exe --title "Health Report and Repair" powershell -NoProfile -ExecutionPolicy Bypass -File "%~dp0Health-Report.ps1" %*
 exit /b 0
 
 :classic
-powershell -NoProfile -ExecutionPolicy Bypass -File "%~dp0Health-Report.ps1"
+powershell -NoProfile -ExecutionPolicy Bypass -File "%~dp0Health-Report.ps1" %*
 if %errorlevel% neq 0 (
     echo.
     echo    Health-Report.ps1 exited with code %errorlevel%.

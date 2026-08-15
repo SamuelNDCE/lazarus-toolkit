@@ -450,6 +450,112 @@ function Write-MarkdownReport {
     Set-Content -Path $Path -Value $md.ToString() -Encoding UTF8
 }
 
+# ---------------------------------------------------------------------
+#  BOXES
+#
+#  Every box in these tools used to be three hand-typed strings, and the
+#  padding was counted by eye. They drifted: the driver install box had a
+#  62 character border over a 64 character line, so the right edge
+#  stepped out and it looked broken.
+#
+#  Hand-counting is the bug. Give it the lines, it sizes itself.
+# ---------------------------------------------------------------------
+function Show-Box {
+    param(
+        [string[]]$Lines,
+        [string]$Colour = 'Yellow',
+        [string]$Indent = '    '
+    )
+    # The arithmetic, because getting it wrong by one is the entire
+    # reason this function exists:
+    #   border row  = '+' + inner dashes + '+'        = inner + 2
+    #   content row = '|' + 2 spaces + text + '|'     = inner + 2
+    # so the text must be padded to inner - 2, leaving two spaces on the
+    # left and at least two on the right. Written as inner - 3 first,
+    # which made every content row one short and the right edge ragged:
+    # the same defect, in the function meant to end it.
+    $widest = 0
+    foreach ($l in $Lines) { if ($l.Length -gt $widest) { $widest = $l.Length } }
+    $inner  = $widest + 4
+    $rule   = $Indent + '+' + ('-' * $inner) + '+'
+    Write-Host $rule -ForegroundColor $Colour
+    foreach ($l in $Lines) {
+        Write-Host ($Indent + '|  ' + $l.PadRight($inner - 2) + '|') -ForegroundColor $Colour
+    }
+    Write-Host $rule -ForegroundColor $Colour
+}
+
+# ---------------------------------------------------------------------
+#  PROGRESS TICKER
+#
+#  For work that BLOCKS the main thread and cannot be moved onto a
+#  runspace, because it owns COM objects that do not cross that boundary.
+#  Windows Update's Download() and Install() are both like this: they
+#  take minutes, print nothing, and leave the screen frozen on the last
+#  line. Samuel watched nine drivers download with no sign of life.
+#
+#  So the ANIMATION goes on the second thread instead of the work. It
+#  reports through [Console] because a runspace made this way has no host
+#  UI of its own, the same reason the DISM watchdog does.
+#
+#  -WatchDownloadCache turns the elapsed counter into real progress by
+#  reading how much has actually landed in SoftwareDistribution, which is
+#  the only honest measure available while Download() is blocking.
+# ---------------------------------------------------------------------
+function Start-ProgressTicker {
+    param([string]$Label, [switch]$WatchDownloadCache)
+
+    # Redirected to a file or a pipe, \r does not return to the start of
+    # a line, so an animation writes hundreds of near-identical lines
+    # instead of one that updates. Spin has always degraded this way; the
+    # ticker did not, and it filled the check suite's output with spinner
+    # frames. One plain line, then silence.
+    #
+    # [Console]::Write also bypasses PowerShell's streams entirely, so a
+    # caller cannot suppress this from the outside. It has to decide for
+    # itself.
+    if (-not $Script:CanAnimate) {
+        Write-Host "    ..   $Label" -ForegroundColor DarkGray
+        return $null
+    }
+
+    $ps = [PowerShell]::Create()
+    [void]$ps.AddScript({
+        param($label, $watchCache)
+        $frames = '|', '/', '-', '\'
+        $i = 0
+        $t0 = Get-Date
+        $dir = Join-Path $env:WINDIR 'SoftwareDistribution\Download'
+        while ($true) {
+            $secs = [int]((Get-Date) - $t0).TotalSeconds
+            $extra = ''
+            if ($watchCache) {
+                try {
+                    $mb = (Get-ChildItem $dir -Recurse -File -Force -ErrorAction SilentlyContinue |
+                           Measure-Object Length -Sum).Sum / 1MB
+                    if ($mb -gt 0) { $extra = ('   {0:N1} MB fetched' -f $mb) }
+                } catch { }
+            }
+            [Console]::Write(("`r    {0}    {1}  {2}s{3}          " -f $frames[$i % 4], $label, $secs, $extra))
+            Start-Sleep -Milliseconds 250
+            $i++
+        }
+    })
+    [void]$ps.AddArgument($Label)
+    [void]$ps.AddArgument([bool]$WatchDownloadCache)
+    $h = $ps.BeginInvoke()
+    return [pscustomobject]@{ PS = $ps; Handle = $h }
+}
+
+function Stop-ProgressTicker($t) {
+    if (-not $t) { return }
+    try { $t.PS.Stop() }    catch { }
+    try { $t.PS.Dispose() } catch { }
+    # Wipe the spinner line so the result prints on a clean row rather
+    # than on top of a half-drawn frame.
+    try { [Console]::Write("`r" + (' ' * 78) + "`r") } catch { }
+}
+
 function Test-Glyph([char]$c) {
     try {
         $e = [Console]::OutputEncoding
@@ -605,13 +711,14 @@ function Spin {
         # look like it had crashed.
         Write-Host ("`r{0}`r" -f (' ' * 78)) -NoNewline
         Write-Host ''
-        $w = 58
-        function Box($text) { Write-Host ("    |  " + $text.PadRight($w - 4).Substring(0, $w - 4) + "|") -ForegroundColor Red }
-        Write-Host ("    +" + ('-' * $w) + "+") -ForegroundColor Red
-        Box 'STALL DETECTED'
-        Box $Label
-        Box "did not respond in ${took}s. Skipped, the run continues."
-        Write-Host ("    +" + ('-' * $w) + "+") -ForegroundColor Red
+        # Was hand-sized: a 60 character border over 58 character lines,
+        # so the right edge never lined up. It also truncated the label at
+        # 54 characters. Show-Box sizes itself to the longest line.
+        Show-Box -Colour Red -Lines @(
+            'STALL DETECTED'
+            $Label
+            "did not respond in ${took}s. Skipped, the run continues."
+        )
         # ${Label}: not $Label: -- a colon straight after a variable name
         # is parsed as a scope or drive qualifier, so the braces are load
         # bearing rather than decoration.
