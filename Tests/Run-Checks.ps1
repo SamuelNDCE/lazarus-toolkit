@@ -187,6 +187,20 @@ if (Test-Path $boxTest) {
     Check 'box renderer test present' $false 'Tests\test-boxes.ps1 is missing'
 }
 
+Section 'STALL WATCHDOGS'
+# Lifts the real watchdog functions out of the shipped file and calls
+# them. Their call sites live inside the SFC/DISM repair, which cannot be
+# run casually, so without this they are only ever exercised as a copy of
+# their own body, which proves the algorithm and not the function.
+$wdTest = Join-Path $PSScriptRoot 'test-watchdogs.ps1'
+if (Test-Path $wdTest) {
+    & $wdTest -Root $Root *>$null
+    Check 'the shipped watchdog functions start, stop, and tolerate $null' ($LASTEXITCODE -eq 0) `
+          'run Tests\test-watchdogs.ps1 for the detail'
+} else {
+    Check 'watchdog test present' $false 'Tests\test-watchdogs.ps1 is missing'
+}
+
 Section 'RECOVERY'
 $retryTest = Join-Path $PSScriptRoot 'test-retry.ps1'
 if (Test-Path $retryTest) {
