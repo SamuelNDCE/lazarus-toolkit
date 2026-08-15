@@ -30,7 +30,18 @@ param(
     [switch]$Unattended
 )
 
+# SilentlyContinue is right for this script: it queries a lot of WMI that
+# legitimately fails on some machines, and a client watching a health
+# check does not need a screen of red for a battery class that does not
+# exist on their desktop.
+#
+# The cost is that it hides OUR bugs too. Repair-Health uses 'Continue',
+# which is exactly why a call to an undefined function showed up there
+# immediately; the same mistake in this file would have vanished without
+# a trace. So errors are still collected and written into the saved
+# report at the end. Quiet on screen, never lost.
 $ErrorActionPreference = 'SilentlyContinue'
+$Error.Clear()
 $Script:Unattended = [bool]$Unattended
 $out  = [System.Collections.ArrayList]@()
 $warn = [System.Collections.ArrayList]@()
@@ -867,6 +878,38 @@ if ($bad.Count) {
 }
 if ($warn.Count) { foreach ($w in $warn) { [void]$out.Add("  ! $w") } }
 Write-Host '   ==========================================' -ForegroundColor Cyan
+
+# DIAGNOSTICS. Anything that went wrong during the run, into the saved
+# file only.
+#
+# A "CommandNotFoundException" or a typo'd property is a fault in this
+# tool, not in the machine being examined, and it must never be presented
+# to a client as a finding about their PC. It must also never be silently
+# dropped, which is what SilentlyContinue does on its own and how a real
+# bug survived a whole run undetected earlier in this tool's life.
+#
+# Filtered to the kinds that indicate a coding mistake. The expected
+# noise (a WMI class that does not exist on this hardware) is exactly
+# what SilentlyContinue is for and stays suppressed.
+$ourFaults = @($Error | Where-Object {
+    $_.CategoryInfo.Reason -match 'CommandNotFoundException|MethodInvocationException|RuntimeException|NullReferenceException|ParameterBindingException'
+})
+if ($ourFaults.Count) {
+    [void]$out.Add('')
+    [void]$out.Add('Tool diagnostics')
+    [void]$out.Add('----------------')
+    [void]$out.Add("$($ourFaults.Count) internal error(s) during this run. These are faults in this")
+    [void]$out.Add('tool, NOT findings about this computer. Please report them.')
+    foreach ($e in ($ourFaults | Select-Object -First 10)) {
+        [void]$out.Add("  $($e.CategoryInfo.Reason): $($e.Exception.Message)")
+        if ($e.InvocationInfo -and $e.InvocationInfo.ScriptLineNumber) {
+            [void]$out.Add("    at line $($e.InvocationInfo.ScriptLineNumber) of $(Split-Path $e.InvocationInfo.ScriptName -Leaf)")
+        }
+    }
+    Write-Host ''
+    Write-Host "    ($($ourFaults.Count) internal tool error(s) recorded in the saved report. The" -ForegroundColor DarkGray
+    Write-Host '     findings above are unaffected.)' -ForegroundColor DarkGray
+}
 
 # Save next to this script, so on the stick every laptop collects here.
 $stamp = Get-Date -f 'yyyy-MM-dd_HHmm'
