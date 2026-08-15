@@ -1,0 +1,76 @@
+================================================================
+ LICENCE NOTES  -  the tools with strings attached
+ Verified 2026-08-12 against the vendors' own pages.
+================================================================
+
+
+MALWAREBYTES              tagged "licence" in the launcher
+----------------------------------------------------------------
+  THE FREE VERSION IS NOT LICENSED FOR BUSINESS DEVICES.
+  Malwarebytes' own wording: the free product "is not licensed for
+  threat removal on business devices", and they say they detect
+  business environments and act on it.
+
+  THERE IS NO FREE PORTABLE MALWAREBYTES.
+  The portable one is the MALWAREBYTES TOOLSET, 18 tools that run
+  off a USB stick with nothing installed on the customer's
+  machine. That is gated behind TechBench ADVANCED.
+
+  TECHBENCH, ACCURATELY:
+    BASIC     free for any repair shop owner. Reseller margins up
+              to 25%, and a 15-DAY TRIAL of the Toolset. That is a
+              trial, not ongoing access.
+    ADVANCED  apply for it. Margins up to 70%, FULL access to all
+              18 portable Toolset tools, and 25 Malwarebytes
+              licences to resell included on joining.
+    Apply: malwarebytes.com/techbench
+
+  So: MBSetup.exe on this stick INSTALLS Malwarebytes, it is not
+  portable. If you want the plug-in-and-scan workflow, Advanced is
+  the route, and it is a reseller programme rather than a plain
+  subscription, so the 25 licences may cover the cost.
+
+  AdwCleaner IS free and IS portable, and is also Malwarebytes.
+  It covers adware and PUPs rather than full malware.
+
+
+HWiNFO                    tagged "licence" in the launcher
+----------------------------------------------------------------
+  Free for personal and non-commercial use. Commercial work needs
+  their paid Pro licence.   hwinfo.com/licensing
+
+
+WIZTREE                   tagged "licence" in the launcher
+----------------------------------------------------------------
+  The hardest line here. Their pricing page states plainly
+  "Commercial use not allowed" as a free-tier limitation, and
+  sells a Supporter tier at $25 to $500 by staff count.
+  diskanalyzer.com
+
+
+LINUX READER
+----------------------------------------------------------------
+  Freeware from DiskInternals, closed source. Free to use, but
+  they sell a paid VMFS Recovery line, so read their terms if you
+  ever charge specifically for data recovery.
+
+
+================================================================
+ REJECTED FOR LICENCE REASONS, DO NOT RE-ADD WITHOUT CHECKING
+================================================================
+  Emsisoft Emergency Kit   free tier is home use; helpdesks and
+                           repair shops need Emergency Kit Pro,
+                           priced by cleaned-PC volume.
+
+
+================================================================
+ PORTABLE AND FREE, NO STRINGS
+================================================================
+  AdwCleaner            adware and PUPs, self-updating
+  Defender Offline Scan built into Windows, scans with the OS off
+  Kaspersky Rescue ISO  boots outside Windows, fetches its own
+                        definitions at boot
+  Everything else on the stick: Sysinternals, 7-Zip, Notepad++,
+  KeePassXC, Picocrypt, Double Commander, BCUninstaller,
+  BleachBit, Rufus, CrystalDiskInfo, Veyon, NextDNS CLI, and
+  every boot ISO.

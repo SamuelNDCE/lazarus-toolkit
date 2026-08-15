@@ -1,0 +1,62 @@
+﻿# ---------------------------------------------------------------------
+# CLIENT DATA. This is the important half of this file.
+#
+# The tools write a report next to themselves for every machine they run
+# on, and those reports contain the machine name, make, model, SERIAL
+# NUMBER, installed software and event log entries for somebody else's
+# computer. One of the reports on the stick this came from named a real
+# person's laptop and its serial.
+#
+# Nothing here that matches a report may ever be committed, and that
+# matters more than usual because a checkout of this repo IS a working
+# toolkit: you run it, it writes reports, and the next `git add -A`
+# would sweep them in.
+# ---------------------------------------------------------------------
+report-*.txt
+report-*.md
+repairlog-*.txt
+*-report-*.txt
+
+# ---------------------------------------------------------------------
+# THIRD-PARTY BINARIES. Fetched by Get-Tools.ps1, never committed.
+#
+# Not a size decision, a licensing one. These are other people's
+# programs and most are not ours to redistribute. Hiren's BootCD PE
+# contains Windows PE, which is Microsoft licensed. Each tool is
+# downloaded from its own official source instead, so every publisher
+# keeps control of their own distribution.
+# ---------------------------------------------------------------------
+Tools/
+ISO/
+Setup/
+*.iso
+*.exe
+*.msi
+*.zip
+*.7z
+*.wim
+
+# BIOS and firmware images. Machine specific, large, and dangerous if
+# flashed to the wrong board.
+*.bin
+*.rom
+*.cap
+BIOS-*/
+
+# Windows and editor noise
+Thumbs.db
+desktop.ini
+*.swp
+*~
+.vscode/
+.idea/
+
+# Anything that looks like a credential, as a backstop. Nothing here
+# should ever produce one, which is exactly when it slips through.
+*.env
+.env
+*.pfx
+*.key
+*_rsa
+id_rsa*
+secrets.*

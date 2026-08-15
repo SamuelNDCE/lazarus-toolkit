@@ -1,0 +1,115 @@
+# Lazarus Toolkit
+
+A USB repair stick for secondhand and ex-corporate Windows machines. It surveys a PC using
+data Windows already has, tells you plainly what is wrong with it, and then repairs the
+things it found, using Windows' own tools rather than installing anything.
+
+Built for a real job: getting donated ex-corporate laptops fit to hand to a child at a
+coding club, and repairing client machines. Everything in it exists because something went
+wrong on an actual machine.
+
+## What you get
+
+**Health and Handover Report** (read-only, safe on any machine)
+
+Battery wear, SMART data, disk health, Windows activation, BitLocker status, security
+software, driver problems ranked by severity, stale and generic drivers, event log faults,
+reliability history, and whether a laptop is actually fit to give to a child.
+
+It writes three files next to itself:
+
+| File | For |
+|---|---|
+| `report-<PC>-<date>.txt` | The full record of the run, including timings |
+| `report-<PC>-<date>.md` | The readable copy. Paste into a ticket, or hand to an AI |
+| *(nothing else)* | It never phones home and never uploads |
+
+**Repair and Recovery** (changes the machine, and says so)
+
+A menu of 15 repairs you pick from, each with a plain description, a time estimate, and a
+`CHANGES` tag if it modifies anything. Offers a restore point first.
+
+SFC and DISM system file repair, driver updates from Windows Update, disk checking, RAM
+testing, Windows Update repair, network stack reset, component store cleanup, and a driver
+installer dry run that proves a machine *can* install drivers without installing any.
+
+## Getting started
+
+```powershell
+git clone https://github.com/perpetual-technologies/lazarus-toolkit.git
+cd lazarus-toolkit
+.\HealthReport\Health-Report.bat
+```
+
+The health report and repair tools work on their own with no setup. They use only what
+Windows already provides, so there is nothing to download for those.
+
+The **full launcher** (`Lazarus.hta`) additionally lists around 40 third-party utilities.
+Those are not included here and are not ours to redistribute (see Licensing), so a fresh
+clone shows them as missing until you put them in `Tools\<Name>\`. `Docs/validate.js`
+reports which paths the launcher expects:
+
+```powershell
+node Docs\validate.js .
+```
+
+> **Not built yet:** an automatic `Get-Tools.ps1` that fetches each utility from its own
+> official source. Until that exists, the third-party tools are a manual step. The health
+> report and repair scripts, which are the substance of this project, do not need it.
+
+Unattended, for surveying a machine with no keypresses:
+
+```powershell
+.\HealthReport\Health-Report.ps1 -Unattended
+```
+
+Read-only checks only. Nothing that changes a machine ever runs without somebody saying yes.
+
+## Requirements
+
+Windows 10 or 11, Windows PowerShell 5.1 (built in, no install). Administrator for the
+checks that need it: SMART, BitLocker, battery capacity, and any repair.
+
+## Design notes
+
+These are worth reading if you are modifying it, because most are scars.
+
+**Nothing silently gives up.** Every slow call has a visible timeout and announces when it
+stalls. A check that quietly returns nothing is worse than one that fails loudly, because
+you then act on a report with a hole in it.
+
+**No question in the middle of a run.** A prompt underneath a wall of output is
+indistinguishable from a freeze. Questions are asked before work starts, or queued and
+asked at the end.
+
+**QuickEdit is disabled at startup.** A single click in a Windows console starts a text
+selection, which blocks every write the script makes. It looks exactly like a crash, and
+somebody watching a slow repair will click the window.
+
+**Log silence, not CPU, detects a hang.** DISM can sit at 0% CPU while healthy, and can
+wedge forever while showing a percentage. The watchdog checks whether `dism.log` is still
+being written and warns at 10 minutes, escalating at 25.
+
+**DISM runs even when SFC is clean.** SFC compares Windows against the component store, so
+a damaged store makes SFC report clean wrongly. A clean SFC is when DISM is most worth
+running. There is an opt-out for when you want the quick version.
+
+## Licensing
+
+The scripts, launcher and documentation here are Apache 2.0. See `LICENSE`.
+
+The third-party utilities are **not** included and are not ours to redistribute. Each is
+downloaded from its own official source by `Get-Tools.ps1` and remains under its own
+licence. See `Docs/LICENCES.txt`. Some, such as Hiren's BootCD PE, contain Microsoft
+licensed components and can only ever be fetched from their publisher.
+
+## A warning about reports
+
+The reports contain the machine name, make, model, **serial number**, installed software
+and event log entries for whatever computer they were run on. On other people's machines
+that is their data. `.gitignore` excludes them, but check before you commit or share.
+
+---
+
+Built by [Perpetual Technologies](https://perpetualtechnologies.co.uk). Free to use, and
+pull requests welcome.

@@ -1,0 +1,120 @@
+================================================================
+ LAZARUS  -  quick reference
+================================================================
+
+
+DO THIS ONCE, BEFORE THE NEXT LAPTOP
+----------------------------------------------------------------
+  Set up NextDNS, or the content filtering is weaker than intended.
+  The first laptop was built without it.
+
+    1. nextdns.io, sign up free (300k queries a month is plenty)
+    2. Create a profile, turn on the categories you want blocked
+    3. Copy the profile ID, it looks like:  a1b2c3
+    4. Open  Setup\Config.ps1  in Notepad
+    5. Find:      $NextDnsProfile = ''
+       Make it:   $NextDnsProfile = 'a1b2c3'
+    6. Save
+
+  Without it you fall back to Cloudflare DNS on the adapter. That
+  still blocks adult content but has no dashboard, and a venue WiFi
+  that forces its own DNS beats it. NextDNS is the one that travels
+  with the laptop, which is the whole point.
+
+
+PER LAPTOP  -  TWO SCRIPTS, NOT ONE RUN TWICE
+----------------------------------------------------------------
+  STEP 1   Setup\Run-Setup.bat
+           Does everything. Takes 20 to 25 minutes, mostly the
+           DISM and SFC scans, which now show a live percentage.
+           It asks two things: teacher laptop yes/no, and the two
+           passwords.
+
+  STEP 2   Reboot. Log in once as  Learner  . Log out.
+
+  STEP 3   Setup\Finish-Setup.bat
+           About 20 seconds. This is a DIFFERENT script and it does
+           NOT repeat step 1.
+
+  Why step 3 exists: Windows does not create a user profile until
+  someone logs in. The camera and microphone lockdown lives inside
+  that profile, and so does the startup shortcut that opens the
+  coding sites. Neither can be written before the profile is there.
+  Finish-Setup does only those leftovers.
+
+  THEN BY HAND, about 3 minutes:
+    - Chrome as default: Settings > Apps > Default apps > Chrome
+      Windows 11 protects this with a hash, no script can set it.
+      Both scripts now CHECK it and tell you if it is not Chrome.
+    - The two Microsoft accounts: Settings > Accounts > Other users,
+      then set them to Administrator
+    - Veyon key exchange, see MANUAL-STEPS.txt
+
+
+LOGS
+----------------------------------------------------------------
+  Setup\Logs\  on this stick, two files per run:
+
+    <PC>_<date>_full.log      complete transcript, every command
+                              and every error, exactly as it ran
+    <PC>_<date>_summary.txt   the short version: what worked, what
+                              failed, what still needs a human
+
+  If something goes wrong, the full log has the real error text.
+
+
+ABOUT CHROME
+----------------------------------------------------------------
+  Chrome is installed from Google's own offline MSI on this stick,
+  NOT from winget.
+  On the first laptop winget failed with 0x8A150011, a hash
+  mismatch: Google had shipped 151.0.7922.138 while winget's
+  manifest still expected .109. The MSI avoids that entirely and
+  also works with no internet.
+
+
+VEYON, THE SCREEN VIEWING
+----------------------------------------------------------------
+  Teacher laptop:  Veyon Configurator > Authentication > create key
+                   pair > export the PUBLIC key to this stick
+  Every learner:   import that public key the same way
+  Teacher again:   Locations & Computers > add each laptop
+
+  Without the key exchange the teacher console connects to nothing.
+  Veyon works over the LOCAL network only, so all laptops must be
+  on the same WiFi. Fine in a club room, not across the internet.
+
+
+THE REPAIR TOOLKIT
+----------------------------------------------------------------
+  Double-click  Start.bat  in the root of this stick.
+  Every tool and boot ISO on the stick, grouped by job.
+
+  Drivers: there is no separate driver tool any more. Driver reporting
+  and driver installing both live in "Health Report and Repair".
+
+  The report tells you what is actually wrong: devices with no driver or
+  a failed one, devices running Windows' own generic driver instead of
+  the manufacturer's (the usual cause of slow graphics and dropping
+  WiFi), and how old every driver is. The repair menu can then install
+  driver updates through Windows Update itself.
+
+  It installs no manufacturer software. The old tool used to winget in
+  MSI Center, MyASUS or Lenovo System Update, which is a lot of vendor
+  weight to leave on a machine you are handing back.
+
+  Windows Update lags the vendor's own driver releases, so it is not
+  always the newest. It is the only source that is both automatic and
+  safe. BIOS and firmware still only come from the board maker's site,
+  and the report prints the exact board name to search for.
+
+  There is NO Windows install ISO here. DISM RestoreHealth pulls
+  from Windows Update by default, so it is not needed unless you
+  start doing clean installs.
+
+
+IF SOMETHING LOOKS WRONG WITH THE TOOLKIT
+----------------------------------------------------------------
+  node Docs\validate.js "D:\"     checks every launcher entry
+  node Docs\orphans.js            finds unreferenced files
+  Both should report zero problems.

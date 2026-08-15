@@ -1,0 +1,698 @@
+﻿<html>
+<head>
+<meta http-equiv="X-UA-Compatible" content="IE=edge">
+<title>Lazarus</title>
+<hta:application id="app"
+  applicationname="Lazarus"
+  border="thin"
+  caption="yes"
+  maximizebutton="no"
+  minimizebutton="yes"
+  scroll="no"
+  singleinstance="yes"
+  windowstate="normal">
+<style>
+/* NeuralVault light tokens, hardcoded (MSHTML has no CSS custom properties).
+   bg #eceae4 / s1 #fbfbfa / s2 #ffffff / s3 #f1f1ef
+   text #17181a / #5c606a / #7a7f88 -- accent #0b6182 -- radii 3/5/7
+
+   Vertical budget for an 880px window:
+     head 74 + tree(flex) + detail 200 + foot 52
+   detail/foot are sized against their tallest real content, measured, so
+   nothing clips and neither pane ever needs a scrollbar. */
+* { box-sizing: border-box; margin: 0; padding: 0; }
+html, body { height: 100%; overflow: hidden; }
+body {
+  background: #eceae4; color: #17181a;
+  font-family: "Segoe UI", "Inter", Tahoma, sans-serif;
+  font-size: 13px; line-height: 1.45;
+}
+
+#head {
+  position: absolute; left: 0; right: 0; top: 0; height: 74px;
+  background: #fbfbfa; border-bottom: 1px solid rgba(0,0,0,0.14);
+  padding: 7px 12px 0 12px;
+}
+#bn { font-size: 14px; font-weight: 600; letter-spacing: -0.02em; line-height: 1.25; }
+#bs { font-size: 11px; color: #7a7f88; line-height: 1.25; margin-top: 1px; }
+#rfsh {
+  position: absolute; right: 11px; top: 8px;
+  width: 26px; height: 26px; line-height: 24px; text-align: center;
+  border: 1px solid rgba(0,0,0,0.14); border-radius: 5px;
+  background: #ffffff; color: #5c606a; font-size: 15px; cursor: pointer;
+}
+#rfsh:hover { background: #f1f1ef; color: #0b6182; border-color: #0b6182; }
+#rfsh.busy { background: #0b6182; color: #ffffff; border-color: #0b6182; }
+#rfsh.stale { background: #9d1f18; color: #ffffff; border-color: #9d1f18; }
+#sw { margin-top: 6px; position: relative; }
+#mag { position: absolute; left: 7px; top: 5px; font-size: 11px; color: #7a7f88; }
+#search {
+  width: 100%; height: 24px; padding: 2px 8px 2px 22px;
+  background: #ffffff; color: #17181a;
+  border: 1px solid rgba(0,0,0,0.14); border-radius: 5px;
+  font-family: inherit; font-size: 12px; outline: none; line-height: 20px;
+}
+#search:focus { border-color: #0b6182; }
+
+#tree {
+  position: absolute; left: 0; right: 0; top: 74px; bottom: 264px;
+  background: #fbfbfa; overflow-y: auto; overflow-x: hidden; padding: 5px 0 8px 0;
+}
+.grp {
+  padding: 6px 12px; cursor: pointer; font-size: 11px; font-weight: 700;
+  color: #17181a; letter-spacing: .02em; text-transform: uppercase;
+}
+.grp:hover { background: #f1f1ef; }
+.chev { display: inline-block; width: 11px; color: #7a7f88; font-size: 9px; }
+.gc { float: right; color: #7a7f88; font-weight: 400; font-size: 11px; text-transform: none; }
+.kids { display: block; }
+.kids.cl { display: none; }
+.leaf {
+  padding: 3px 12px 3px 8px; cursor: pointer; font-size: 12px; color: #5c606a;
+  border-left: 1px solid rgba(0,0,0,0.14); margin-left: 17px;
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+.ico { width: 16px; height: 16px; vertical-align: -3px; margin-right: 7px; }
+.ico.disc {
+  display: inline-block; width: 16px; height: 16px; margin-right: 7px;
+  text-align: center; color: #a8adb8; font-size: 13px; vertical-align: -2px;
+}
+.bigico { width: 32px; height: 32px; float: left; margin: 0 10px 0 0; }
+.bigico.disc {
+  display: block; width: 32px; height: 32px; float: left; margin: 0 10px 0 0;
+  text-align: center; line-height: 32px; color: #a8adb8; font-size: 26px;
+}
+.leaf:hover { background: #f1f1ef; color: #17181a; }
+.leaf.sel { background: #ffffff; color: #17181a; font-weight: 600; border-left: 1px solid #0b6182; }
+.leaf.gone { color: #9d1f18; }
+.pin { float: right; font-size: 10px; color: #7a7f88; font-weight: 400; }
+
+#detail {
+  position: absolute; left: 0; right: 0; bottom: 52px; height: 212px;
+  background: #ffffff; border-top: 1px solid rgba(0,0,0,0.14);
+  padding: 10px 12px; overflow: hidden;
+}
+#empty { text-align: center; padding-top: 34px; }
+#eicon { font-size: 30px; color: #c9ccd4; line-height: 1; }
+#etitle { font-size: 15px; font-weight: 600; color: #5c606a; margin-top: 14px; letter-spacing: -0.01em; }
+#ehint {
+  font-size: 11px; color: #7a7f88; margin: 7px auto 0 auto;
+  max-width: 310px; line-height: 1.55;
+}
+/* Title block is measured to match the 32px icon exactly, so the purpose line
+   sits flush with the icon's bottom edge:
+   #dn 15px x 1.2 = 18.0  +  #dfor 11px x 1.25 = 13.75  =  31.75 ~ 32px */
+#dn { font-size: 15px; font-weight: 700; letter-spacing: -0.02em; line-height: 1.2; }
+#dfor { font-size: 11px; color: #0b6182; font-weight: 600; line-height: 1.25; margin-top: 0; }
+#dd { font-size: 11px; color: #5c606a; line-height: 1.45; margin-top: 8px; height: 62px; overflow: hidden; clear: both; }
+#dmeta { font-size: 10px; color: #7a7f88; margin-top: 5px; line-height: 1.3; }
+#dmeta b { color: #17181a; font-weight: 600; }
+#dpath {
+  font-family: "Cascadia Mono", Consolas, monospace; font-size: 10px;
+  color: #7a7f88; margin-top: 4px; line-height: 1.3;
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+#drow { margin-top: 9px; height: 26px; }
+#run {
+  float: right; background: #0b6182; color: #ffffff;
+  border: 1px solid #0b6182; border-radius: 5px;
+  padding: 4px 15px; font-size: 12px; font-weight: 600; cursor: pointer;
+}
+#run:hover { background: #0a5875; border-color: #0a5875; }
+#run.dead { background: #f1f1ef; color: #7a7f88; border-color: rgba(0,0,0,0.14); cursor: default; }
+#dexp {
+  display: inline-block; font-size: 11px; color: #0b6182; cursor: pointer;
+  border: 1px solid rgba(0,0,0,0.14); border-radius: 5px; padding: 4px 11px;
+  background: #fbfbfa;
+}
+#dexp:hover { background: #f1f1ef; }
+.tag {
+  display: inline-block; font-size: 10px; font-weight: 600;
+  border-radius: 3px; padding: 1px 6px; margin-left: 6px; vertical-align: 2px;
+}
+.t-info { background: rgba(11,97,130,0.12); color: #0b6182; }
+.t-warn { background: rgba(122,66,0,0.12);  color: #7a4200; }
+.t-dang { background: rgba(157,31,24,0.12); color: #9d1f18; }
+.t-ok   { background: rgba(18,94,39,0.12);  color: #125e27; }
+
+#foot {
+  position: absolute; left: 0; right: 0; bottom: 0; height: 46px;
+  background: #fbfbfa; border-top: 1px solid rgba(0,0,0,0.14); padding: 9px 12px;
+}
+/* Bar and stats stop short of the eject square rather than running under it. */
+#barwrap {
+  height: 6px; background: #f1f1ef; border: 1px solid rgba(0,0,0,0.14);
+  border-radius: 999px; overflow: hidden; margin-right: 46px;
+}
+#bar { height: 100%; width: 0; background: #0b6182; }
+#bar.warn { background: #7a4200; }
+#bar.full { background: #9d1f18; }
+#stat { font-size: 11px; color: #7a7f88; margin-top: 6px; line-height: 1.3; padding-right: 46px; }
+#stat b { color: #17181a; font-weight: 700; }
+#statr { float: right; }
+/* Eject: square, right-hand end of the footer, diagonally opposite Refresh in
+   the header. Refresh is safe and frequent; eject is final and rare, so they
+   are kept far apart on purpose. Red at rest using the danger token, solid on
+   hover, because this is the one control that ends the session. */
+#ejectbtn {
+  position: absolute; right: 10px; top: 4px;
+  width: 38px; height: 38px; line-height: 36px; text-align: center;
+  font-size: 17px; color: #9d1f18; cursor: pointer;
+  border: 1px solid rgba(157,31,24,0.45); border-radius: 5px;
+  background: rgba(157,31,24,0.12);
+}
+#ejectbtn:hover { background: #9d1f18; border-color: #9d1f18; color: #ffffff; }
+#ejectbtn.busy {
+  background: #9d1f18; border-color: #9d1f18; color: #ffffff;
+  font-size: 9px; line-height: 12px; padding-top: 7px;
+}
+</style>
+</head>
+
+<body>
+
+<div id="head">
+  <div id="rfsh" onclick="refresh()" title="Re-scan the drive and rebuild this list">&#8635;</div>
+  <div id="bn">Lazarus</div>
+  <div id="bs">portable &middot; nothing installs to the host</div>
+  <div id="sw"><span id="mag">&#128269;</span><input type="text" id="search" onkeyup="filter(event)"></div>
+</div>
+
+<div id="tree"></div>
+
+<div id="detail">
+  <div id="empty">
+    <div id="eicon">&#9781;</div>
+    <div id="etitle">Pick a tool to get started</div>
+    <div id="ehint">Click anything on the left to see what it does and how much space it takes.
+      Double-click to launch it straight away.</div>
+  </div>
+  <div id="body" style="display:none">
+    <div id="dn"></div>
+    <div id="dfor"></div>
+    <div id="dd"></div>
+    <div id="dmeta"></div>
+    <div id="dpath"></div>
+    <div id="drow"></div>
+  </div>
+</div>
+
+<div id="foot">
+  <div id="ejectbtn" onclick="eject()" title="Eject: checks nothing is running, then safely removes this drive">&#9167;</div>
+  <div id="barwrap"><div id="bar"></div></div>
+  <div id="stat"><span id="statl"></span><span id="statr"></span></div>
+</div>
+
+<script language="JScript">
+var shell = new ActiveXObject("WScript.Shell");
+var fso   = new ActiveXObject("Scripting.FileSystemObject");
+
+function baseDir(){
+  var p = location.href.replace(/^file:\/+/, "");
+  p = decodeURIComponent(p).replace(/\//g, "\\");
+  return p.substring(0, p.lastIndexOf("\\"));
+}
+var BASE = baseDir();
+
+/* name, path, PURPOSE, description, tag, tagclass */
+var DATA = [
+["Malware &amp; Forensics", [
+
+ ["Malwarebytes","Tools\\Malwarebytes\\MBSetup.exe","Full scan and clean, always current",
+  "INSTALLS Malwarebytes, it is not portable. Detections refresh whenever it is online, so it never goes stale. The portable 18-tool Toolset needs TechBench Advanced; the free tier is home use only. See Docs LICENCES.txt. AdwCleaner is the free portable one.","licence","t-warn"],
+ ["Autoruns","Tools\\Sysinternals\\Autoruns64.exe","Find how malware survives reboots",
+  "Lists every autostart hook Windows has: run keys, services, scheduled tasks, drivers, shell extensions, codecs. Submits hashes to VirusTotal live, so it flags current threats however old this copy is.","VT","t-info"],
+ ["Process Explorer","Tools\\Sysinternals\\procexp64.exe","Identify a suspicious running process",
+  "Task Manager with a parent-child tree, loaded DLLs, open handles and network connections. Right-click any process to check it against VirusTotal.","VT","t-info"],
+ ["Activity Log","Tools\\ActivityLog\\Activity-Log.bat","See what has been done on a machine",
+  "Reads what Windows quietly keeps even when auditing was never on: UserAssist, which records every program a user launched and when, plus Prefetch and the Security log. Then offers to switch on real auditing, including command lines, going forward.","",""],
+ ["Process Monitor","Tools\\Sysinternals\\Procmon64.exe","Work out what a program is actually doing",
+  "Live capture of every file, registry, network and process event. The tool for 'why does this fail' and 'what is it touching'. Filter hard or it will drown you.","",""],
+ ["ADWCleaner","Tools\\ADWCleaner\\adwcleaner.exe","Strip adware, toolbars and hijacked browsers",
+  "Targets PUPs, bundled junk, hijacked search providers and rogue extensions. Covers the category general antivirus deliberately ignores.","live","t-ok"],
+
+ ["TCPView","Tools\\Sysinternals\\tcpview64.exe","See what a process is talking to",
+  "Live list of every TCP and UDP connection with the process that owns it. The fast way to answer 'what is this thing phoning home to'. Colours new and dying connections, resolves addresses, and can end a connection or kill its process outright.","",""],
+ ["Ransomware Decryptors","Tools\\Decryptors\\Open-Decryptors.bat","Get files back without paying the ransom",
+  "92 free decryptors from Emsisoft, Avast, Bitdefender and Kaspersky, offline because a ransomed machine rarely has a working browser. Covers STOP/Djvu, Akira, Rhysida, REvil, GandCrab and DarkSide. Identify the strain first: instructions in that folder README.","set","t-ok"]
+]],
+["Drive Health &amp; Recovery", [
+ ["Restore Point","Tools\\RestorePoint\\Restore-Point.bat","Make a rollback point before you start",
+  "Windows 11 ships with System Protection OFF, so most machines have nothing to roll back to. This turns it on if needed and makes a point, in under a minute. Run it before you change anything. Roll back later with rstrui.exe.","",""],
+ ["Health Report and Repair","Tools\\HealthReport\\Health-Report.bat","Full checkup, then fix what it found",
+  "Reads what Windows already knows and gives a verdict: battery wear, disk health, RAM, activation, Defender, firewall, BitLocker, BIOS age, installed programs, and every driver with its age. Then offers repairs: SFC, DISM, chkdsk, Windows Update, driver installs.","",""],
+ ["CrystalDiskInfo","Tools\\CrystalDiskInfo\\DiskInfo64.exe","See drive health at a glance",
+  "Reads SMART and gives one colour-coded verdict per drive, Good, Caution or Bad, with temperature, power-on hours and reallocated sector count. The fast answer to whether a disk is dying. GSmartControl runs the deeper self-tests when it says Caution.","",""],
+ ["QPhotoRec","Tools\\TestDisk\\testdisk-7.2\\qphotorec_win.exe","Recover deleted files from a wrecked disk",
+  "Carves files by signature, ignoring the filesystem entirely. Works even after a format. The console build photorec_win.exe sits in the same folder if you ever need finer control.","",""],
+ ["Linux Reader","Tools\\LinuxReader\\LinuxReader64.exe","Read a NAS disk from inside Windows",
+  "Opens ZFS, ext2/3/4, XFS, Btrfs and APFS volumes that Windows shows as raw unformatted space, and copies files off them. The fast route to a file on a TrueNAS pool with no reboot. Read-only, so it cannot harm the pool. Freeware, signed, not open source.","",""],
+ ["HxD","Tools\\HxD\\app\\HxD64.exe","Edit raw disks, RAM and boot sectors",
+  "Hex editor that opens physical drives and live memory as if they were files, which is the whole reason to carry one on a repair stick: MBR, GPT, partition tables and boot sectors. Opens files up to 8 EB instantly. Also does checksums, file compare and secure shredding.","",""]
+]],
+["Hardware Diagnostics", [
+ ["OCCT","Tools\\OCCT\\OCCT.exe","Prove whether hardware is unstable",
+  "Stress tests CPU, GPU, memory and power supply with live sensor graphs and automatic error detection. First thing to run on random crashes or freezes. Its CPU test covers what Prime95 was carried for.","",""],
+ ["HWiNFO64","Tools\\HWiNFO\\HWiNFO64.exe","Read every sensor accurately",
+  "The most complete and accurate sensor readout available: per-core clocks and temperatures, VRM, power draw, drive health, fan curves. Free for personal and non-commercial use; commercial work needs their Pro licence.","licence","t-warn"],
+ ["GPU-Z","Tools\\GPU-Z\\GPU-Z.2.70.0.exe","Identify and verify a graphics card",
+  "GPU model, memory type and vendor, BIOS version, PCIe link speed and live sensors. Its BIOS dump and fake-card detection help on second-hand hardware.","",""]
+]],
+["Drivers", [
+ ["Display Driver Uninstaller","Tools\\DDU\\DDU v18.1.5.6\\Display Driver Uninstaller.exe","Fix graphics corruption a reinstall won't",
+  "Completely removes GPU drivers including registry entries and leftover files a normal uninstall leaves behind. The fix for black screens, artefacts and failed driver upgrades. Run in Safe Mode.","safe","t-warn"],
+ ["DriverStore Explorer","Tools\\DriverStoreExplorer\\Rapr.exe","Purge old driver packages",
+  "REMOVES drivers, it does not install them. Windows never deletes superseded drivers, so the DriverStore quietly grows to many GB of obsolete versions. This lists every package, flags the unused ones and deletes them. Use Snappy to install. Open source (GPL-2.0).","",""]
+]],
+["Network &amp; Remote", [
+ ["WinSCP","Tools\\WinSCP\\portable\\WinSCP.exe","Move files to and from Linux boxes",
+  "Dual-pane SFTP, SCP and FTP client. The everyday way in and out of Proxmox and TrueNAS hosts, with an editor for remote config files.","",""],
+ ["WindTerm","Tools\\WindTerm\\WindTerm_2.7.0\\WindTerm.exe","Get a shell on a server or switch",
+  "SSH, SFTP, telnet and serial in one window, with tabs and split panes. Replaced PuTTY, whose interface is one session per window and unchanged since 1999. The serial console matters for switches, routers and headless boxes with no network.","",""],
+ ["Angry IP Scanner","Tools\\AngryIPScanner\\ipscan-3.9.3.exe","Quick sweep for live hosts",
+  "Fast subnet ping sweep with hostnames and open ports. The network-discovery tool here: unlike Nmap it needs no Npcap driver installed on the machine you are working on, so it just runs. Shows live hosts, hostnames and common open ports.","",""],
+ ["RustDesk","Tools\\RustDesk\\rustdesk-1.4.9-x86_64.exe","Remote into a machine to help someone",
+  "Remote desktop support, open source, no account and no licence nag. Can self-host the relay if you would rather not route through a third party.","",""],
+ ["Firefox","Tools\\Firefox\\Firefox-Portable.bat","Browse from a clean, separate browser",
+  "A hijacked or simply broken browser is normal on an infected machine, and you still need to fetch a driver or a tool. This runs off the stick with its profile kept here, so it leaves nothing on the host and inherits none of that machine's extensions or proxy settings.","",""]
+]],
+["Security &amp; Credentials", [
+ ["KeePassXC","Tools\\KeePassXC\\KeePassXC-2.7.12-Win64\\KeePassXC.exe","Carry client credentials safely",
+  "Encrypted password database. Keeps site and client logins on the stick instead of a text file, which is how this usually goes wrong.","",""],
+ ["Picocrypt","Tools\\Picocrypt\\Picocrypt.exe","Encrypt files before you carry them",
+  "Drag a file in, set a password, get an encrypted copy. Modern, one-screen interface with no volumes to create or mount. For carrying recovered client data off site without it sitting in the clear on this stick. Open source, single 2.6 MB binary, nothing installs.","",""]
+]],
+["Files &amp; Utilities", [
+ ["Double Commander","Tools\\DoubleCommander\\doublecmd\\doublecmd.exe","Move and compare files properly",
+  "Dual-pane file manager: two folders side by side, batch rename, folder sync and compare, built-in archive handling, and it can run elevated to reach paths Explorer refuses. Open source (GPL-2.0).","",""],
+ ["Everything","Tools\\Everything\\everything.exe","Find any file instantly by name",
+  "Indexes the entire MFT and returns matches as you type. Locate a config, log or stray installer across a whole machine without knowing where it lives.","",""],
+ ["WizTree","Tools\\WizTree\\WizTree64.exe","Find what filled a drive, in seconds",
+  "Reads the NTFS Master File Table directly instead of walking folders, so it maps a full disk in seconds where WinDirStat takes many minutes. The free build is personal use only: the vendor states commercial use is not allowed, so paid client work needs their licence.","licence","t-warn"],
+ ["7-Zip","Tools\\7-Zip\\portable\\7zFM.exe","Open literally any archive",
+  "Handles 7z, zip, rar, iso, wim, and extracts most installers directly. 7zr.exe alongside is a single-file extractor needing no install at all.","",""],
+ ["Notepad++","Tools\\NotepadPlusPlus\\notepad++.exe","Edit config and log files properly",
+  "Syntax highlighting, huge-file handling, regex find-and-replace across a folder, and correct Unix line-ending handling, which Notepad still mangles.","",""],
+ ["BCUninstaller","Tools\\BCUninstaller\\BCUninstaller.exe","Rip out bloatware, properly",
+  "Lists everything installed including Store apps, Steam games and orphaned entries, uninstalls many at once, then hunts the leftover files and registry keys the vendor's own uninstaller abandoned. Open source, so it has no upsell and no licence limit on client work.","",""],
+ ["Win11Debloat","Tools\\Win11Debloat\\Run.bat","Strip bloat from a laptop you are setting up",
+  "Removes preinstalled apps, disables telemetry and declutters Start, Explorer and the taskbar. Numbered menu, elevates itself, nothing installs. The time-saver when you are doing the same cleanup on laptop after laptop. Works on Windows 10 and 11.","",""],
+ ["Dism++","Tools\\DismPlusPlus\\Dism++x64.exe","Repair and clean up Windows itself",
+  "A GUI over DISM. Runs RestoreHealth against a corrupt component store, strips superseded updates and the WinSxS bloat Disk Cleanup will not touch, manages drivers and boot entries, and edits an offline Windows image. MIT licensed. Needs an admin prompt.","",""],
+ ["BleachBit","Tools\\BleachBit\\BleachBit-Portable\\bleachbit.exe","Reclaim space and clear traces",
+  "Clears caches, temp files, logs and browser history across many applications. Open source, so what it deletes is auditable.","",""],
+ ["Rufus","Tools\\Rufus\\rufus-4.15p.exe","Write a bootable USB from an ISO",
+  "Creates bootable installers and rescue media. Also the way to wipe and repartition a stubborn USB stick Windows refuses to format.","",""]
+]],
+["Temporary", [
+
+ ["Club Laptop Build","Setup\\Run-Setup.bat","Provision a laptop for the coding club",
+  "The full Southend Music Tech Clubs build: accounts, software, Chrome policy, AppLocker, auditing and the desktop shortcuts, in one run. About 25 minutes. Reads its settings from Setup\\Config.ps1. Temporary: delete the Setup folder when the batch is finished.","temp","t-warn"],
+ ["Check Club Build","Setup\\Verify-Club.bat","Check a built laptop and repair what drifted",
+  "Checks accounts, software, filtering DNS, lockdown, privacy, auditing and the desktop. Reports what has changed since the build and offers to put each one back. Read-only until you say yes.","temp",""],
+ ["Fix WiFi","Setup\\Fix-WiFi.bat","Work out why a laptop is offline",
+  "Checks the driver, WLAN AutoConfig, radio state, power management, DHCP, MAC randomisation, leftover antivirus network filters and DNS, then reports which one is actually at fault. Fixes what it can. Runs straight through and only asks at the end.","temp",""],
+ ["Copy Setup to a Laptop","Setup\\Make-Portable.bat","Put the build folder on the machine itself",
+  "Copies the whole Setup folder to the laptop so the build can run without the stick plugged in, verifies the copy by file list and total size, and locks it down if it carries a Tailscale key.","temp",""]
+]],
+["Boot ISOs", [
+
+ ["Hiren's BootCD PE","ISO\\Windows\\HBCD_PE_x64.iso","Windows will not boot at all",
+  "Bootable Windows 11 PE with about 90 free tools. Your environment when the installed Windows cannot start. Reboot and choose it from the Ventoy menu.","boot","t-warn"],
+ ["Kaspersky Rescue","ISO\\Rescue\\KasperskyRescueDisk.iso","Kill malware that survives inside Windows",
+  "Scans with Windows shut down, so rootkits and ransomware cannot hide or fight back. Downloads current definitions on boot. The last resort that usually works.","boot","t-warn"],
+ ["SystemRescue 13.02","ISO\\Linux\\systemrescue-13.02-amd64.iso","Repair Linux filesystems and partitions",
+  "Full Linux toolkit: GParted, ddrescue, LVM, ext4, XFS and btrfs repair, plus qemu-img for VM disk images. Everything Windows PE cannot read.","boot","t-warn"],
+ ["Rescuezilla 2.6.2","ISO\\Rescue\\rescuezilla-2.6.2-64bit.iso","Image or clone a whole drive",
+  "Point-and-click disk imaging and cloning, Clonezilla-compatible. Take a full image before attempting any risky repair.","boot","t-warn"],
+ ["MemTest86+ 8.10","ISO\\Rescue\\MemTest86plus-8.10-x86_64.iso","Prove whether RAM is faulty",
+  "Boots without an OS so it can test all memory. An in-Windows tester cannot check RAM the OS is holding, which is why those give false passes.","boot","t-warn"],
+]]
+];
+
+var FLAT = [], SEL = -1, SZCACHE = {};
+
+/* What each pin means, shown on hover in both the tree and the detail pane. */
+var TAGDEF = {
+  "VT"   : "Checks files against VirusTotal live, so it stays current however old this copy is.",
+  "live" : "Downloads current definitions when it launches. Needs internet.",
+  "AV"   : "Antivirus will flag this. Expected: it contains genuine password-recovery tools.",
+  "cli"  : "Command line only. Opens a console window, no graphical interface.",
+  "safe" : "Run this from Windows Safe Mode or it cannot do its job properly.",
+  "boot" : "Not launchable from here. Reboot and pick it from the Ventoy menu.",
+  "set"  : "A collection, not a single program. Opens a folder of tools.",
+  "10 days" : "Expires 10 days after download and refuses to run rather than scanning with stale definitions. Re-download before a job.",
+  "licence" : "Licensing caveat for commercial or paid client work. Read the description.",
+  "temp" : "For the job in hand, not part of the permanent repair kit. Delete the Setup folder when the batch is finished."
+};
+function tagTitle(tag){ return TAGDEF[tag] ? TAGDEF[tag] : ""; }
+
+/* Each tool's own icon, extracted from its exe into .\Icons at build time.
+   Keyed by display name. ISOs have no icon and fall through to a disc glyph. */
+var ICON = {
+ "Ransomware Decryptors":"decryptors", "Linux Reader":"linuxreader",
+ "Malwarebytes":"malwarebytes", "Autoruns":"autoruns", "Process Explorer":"procexp",
+ "Activity Log":"activitylog", "Process Monitor":"procmon",
+ "ADWCleaner":"adwcleaner", "Firefox":"firefox", "Win11Debloat":"win11debloat", "Dism++":"dismpp",
+ "TCPView":"tcpview", "Restore Point":"restorepoint", "Health Report and Repair":"healthreport", "CrystalDiskInfo":"crystaldiskinfo",
+ "QPhotoRec":"qphotorec", "OCCT":"occt",
+ "HWiNFO64":"hwinfo", "GPU-Z":"gpuz",
+ "BCUninstaller":"bcuninstaller", "DriverStore Explorer":"rapr",
+ "Double Commander":"doublecmd",
+ "Display Driver Uninstaller":"ddu",
+ "WinSCP":"winscp", "WindTerm":"windterm", "Angry IP Scanner":"ipscan",
+ "RustDesk":"rustdesk",
+ "KeePassXC":"keepassxc", "Picocrypt":"picocrypt", "Everything":"everything",
+ "WizTree":"wiztree", "7-Zip":"sevenzip", "Notepad++":"notepadpp",
+ "HxD":"hxd",
+ "BleachBit":"bleachbit", "Rufus":"rufus"
+};
+function iconTag(name, cls){
+  if (ICON[name]) { return '<img class="' + cls + '" src="Icons/' + ICON[name] + '.png">'; }
+  return '<span class="' + cls + ' disc">&#9673;</span>';
+}
+
+function fmt(b){
+  if (b >= 1073741824) { return (Math.round(b / 107374182.4) / 10) + " GB"; }
+  if (b >= 1048576)    { return (Math.round(b / 104857.6) / 10) + " MB"; }
+  if (b >= 1024)       { return Math.round(b / 1024) + " KB"; }
+  return b + " B";
+}
+
+/* Report the size of the whole tool, not its launcher exe: WinMergeU.exe is
+   4 MB but WinMerge is 78 MB. Folder walks are slow on USB, so cache. */
+function toolRoot(rel){
+  var p = rel.split("\\");
+  if (p.length < 2) { return null; }
+  return p[0] + "\\" + p[1];
+}
+function toolSize(t){
+  var key = t.iso ? t.rel : toolRoot(t.rel);
+  if (key === null) { return -1; }
+  if (SZCACHE[key] !== undefined) { return SZCACHE[key]; }
+  var v = -1;
+  try {
+    if (t.iso) { v = fso.GetFile(BASE + "\\" + t.rel).Size; }
+    else { v = fso.GetFolder(BASE + "\\" + key).Size; }
+  } catch (e) { v = -1; }
+  SZCACHE[key] = v;
+  return v;
+}
+
+function build(){
+  var html = "", idx = 0, miss = 0;
+  for (var g = 0; g < DATA.length; g++) {
+    var grp = DATA[g], kids = "";
+    var isIso = (grp[0] === "Boot ISOs");
+    for (var i = 0; i < grp[1].length; i++) {
+      var t = grp[1][i];
+      var ok = fso.FileExists(BASE + "\\" + t[1]);
+      if (!ok) { miss++; }
+      FLAT[FLAT.length] = { g:grp[0], n:t[0], rel:t[1], f:t[2], d:t[3], tag:t[4], tc:t[5], ok:ok, iso:isIso };
+      var pin = t[4] ? '<span class="pin" title="' + tagTitle(t[4]) + '">' + t[4] + '</span>' : '';
+      kids += '<div class="leaf' + (ok?'':' gone') + '" id="lf' + idx + '"'
+            + ' data-f="' + (t[0]+" "+t[2]+" "+t[3]).toLowerCase().replace(/"/g,'') + '"'
+            + ' onclick="pick(' + idx + ')" ondblclick="go()">'
+            + pin + iconTag(t[0], "ico") + t[0] + '</div>';
+      idx++;
+    }
+    html += '<div class="grp" onclick="tog(' + g + ')">'
+          + '<span class="chev" id="cv' + g + '">&#9660;</span> ' + grp[0]
+          + '<span class="gc">' + grp[1].length + '</span></div>'
+          + '<div class="kids" id="kd' + g + '">' + kids + '</div>';
+  }
+  document.getElementById("tree").innerHTML = html;
+  storage(miss);
+}
+
+function storage(miss){
+  try {
+    var drv = fso.GetDrive(fso.GetDriveName(BASE));
+    var total = drv.TotalSize, used = total - drv.FreeSpace;
+    var pct = Math.round((used / total) * 1000) / 10;
+    var bar = document.getElementById("bar");
+    bar.style.width = pct + "%";
+    bar.className = (pct > 90) ? "full" : ((pct > 75) ? "warn" : "");
+    document.getElementById("statl").innerHTML =
+      "<b>" + fmt(used) + "</b> used of " + fmt(total) + "  &middot;  <b>" + pct + "%</b>";
+    document.getElementById("statr").innerHTML =
+      "<b>" + FLAT.length + "</b> tools" + (miss ? "  &middot;  " + miss + " missing" : "");
+  } catch (e) { document.getElementById("statl").innerHTML = "drive info unavailable"; }
+}
+
+function tog(g){
+  var k = document.getElementById("kd"+g), c = document.getElementById("cv"+g);
+  if (k.className.indexOf("cl") > -1) { k.className="kids"; c.innerHTML="&#9660;"; }
+  else { k.className="kids cl"; c.innerHTML="&#9654;"; }
+}
+
+/* Pull one table literal out of our own source. String-aware, so a bracket
+   inside a description cannot end the slice early. Returns null if not found. */
+function sliceTable(src, name, open, close){
+  var start = src.indexOf("var " + name + " = " + open);
+  if (start === -1) { return null; }
+  var from = src.indexOf(open, start);
+  var depth = 0, inStr = null, esc = false;
+  for (var i = from; i < src.length; i++) {
+    var c = src.charAt(i);
+    if (inStr) {
+      if (esc) { esc = false; }
+      else if (c === "\\") { esc = true; }
+      else if (c === inStr) { inStr = null; }
+      continue;
+    }
+    if (c === '"' || c === "'") { inStr = c; continue; }
+    if (c === open) { depth++; }
+    else if (c === close) { depth--; if (depth === 0) { return src.substring(from, i + 1); } }
+  }
+  return null;
+}
+
+/* JSON.parse first: all three tables are strict JSON, and it cannot execute
+   anything. eval is a fallback only, for a hand-edit that leaves valid JS but
+   invalid JSON (a trailing comma, a single-quoted string). The input is this
+   file, which mshta is already executing, so the fallback adds no reach. */
+function parseTable(txt){
+  try { return JSON.parse(txt); } catch (e) {}
+  try { return eval("(" + txt + ")"); } catch (e) {}
+  return null;
+}
+
+/* Re-read our own tables off the stick. This is what makes Refresh mean
+   "re-read the stick" rather than "re-walk what was loaded at startup":
+   edit DATA, ICON or TAGDEF, press Refresh, and the change is live.
+   Any failure leaves the in-memory tables untouched and reports false. */
+function reloadTables(){
+  try {
+    var f = fso.OpenTextFile(BASE + "\\Lazarus.hta", 1);
+    var txt = f.ReadAll();
+    f.Close();
+    var d = sliceTable(txt, "DATA", "[", "]");
+    var i = sliceTable(txt, "ICON", "{", "}");
+    var t = sliceTable(txt, "TAGDEF", "{", "}");
+    if (!d || !i || !t) { return false; }
+    var nd = parseTable(d), ni = parseTable(i), nt = parseTable(t);
+    if (!nd || !ni || !nt || !nd.length) { return false; }
+    DATA = nd; ICON = ni; TAGDEF = nt;
+    return true;
+  } catch (e) { return false; }
+}
+
+/* Re-scan: re-read the tables from disk, re-test every file, recompute sizes
+   (cache cleared) and re-read free space. The button turns red briefly if the
+   re-read failed, so a silent half-refresh is never mistaken for a real one. */
+function refresh(){
+  var b = document.getElementById("rfsh");
+  b.className = "busy";
+  var before = FLAT.length;
+  var ok = reloadTables();
+  FLAT = []; SZCACHE = {}; SEL = -1;
+  build();
+  document.getElementById("body").style.display = "none";
+  document.getElementById("empty").style.display = "";
+  filter(null);
+
+  /* Say what just happened, in the footer, for 2.6s.
+     Without this the button flashes for 350ms and the list looks identical
+     whenever nothing changed on disk, which is indistinguishable from broken.
+     build() has already run storage(), so the text captured here is the
+     freshly-rebuilt one to restore afterwards. */
+  var after = FLAT.length, delta = after - before;
+  var sr = document.getElementById("statr");
+  var normal = sr.innerHTML;
+  if (!ok) {
+    sr.innerHTML = "<span style='color:#9d1f18'>re-read failed</span>";
+  } else if (delta === 0) {
+    sr.innerHTML = "re-read <b>" + after + "</b>, no change";
+  } else {
+    sr.innerHTML = "re-read <b>" + after + "</b> (" + (delta > 0 ? "+" : "") + delta + ")";
+  }
+
+  window.setTimeout(function(){
+    var r = document.getElementById("rfsh");
+    r.className = ok ? "" : "stale";
+    r.title = ok ? "Re-scan the drive and rebuild this list"
+                 : "Re-read of Lazarus.hta failed. Showing the tables loaded at startup.";
+  }, 350);
+  window.setTimeout(function(){
+    var s = document.getElementById("statr");
+    if (s) { s.innerHTML = normal; }
+  }, 2600);
+}
+
+function pick(i){
+  if (SEL > -1) { var o = document.getElementById("lf"+SEL); if (o) { o.className = o.className.replace(" sel",""); } }
+  SEL = i;
+  var el = document.getElementById("lf"+i);
+  if (el && el.className.indexOf("sel") === -1) { el.className += " sel"; }
+
+  document.getElementById("empty").style.display = "none";
+  document.getElementById("body").style.display = "";
+
+  var t = FLAT[i];
+  var tag = t.tag ? '<span class="tag '+t.tc+'" title="'+tagTitle(t.tag)+'">'+t.tag+'</span>' : '';
+  document.getElementById("dn").innerHTML = iconTag(t.n, "bigico") + t.n + tag;
+  document.getElementById("dfor").innerHTML = t.f;
+  document.getElementById("dd").innerHTML = t.d;
+
+  var sz = toolSize(t);
+  document.getElementById("dmeta").innerHTML =
+      (sz >= 0 ? "<b>" + fmt(sz) + "</b> on the drive" : "size unavailable")
+    + (t.ok ? "" : "  &middot;  <span style='color:#9d1f18'>FILE MISSING</span>");
+  document.getElementById("dpath").innerHTML = t.rel;
+
+  var btn = t.iso ? '<span id="run" class="dead">Reboot &rarr; Ventoy</span>'
+                  : (t.ok ? '<span id="run" onclick="go()">Launch</span>'
+                          : '<span id="run" class="dead">Not found</span>');
+  document.getElementById("drow").innerHTML =
+    '<span id="dexp" onclick="reveal()">Open folder</span>' + btn;
+}
+
+function go(){
+  var t = FLAT[SEL];
+  if (!t || t.iso) { return; }
+  var full = BASE + "\\" + t.rel;
+  if (!fso.FileExists(full)) { alert("Not found:\n\n" + full); return; }
+  try {
+    shell.CurrentDirectory = full.substring(0, full.lastIndexOf("\\"));
+    shell.Run('"' + full + '"', 1, false);
+  } catch (e) { alert("Could not launch:\n\n" + full + "\n\n" + e.message); }
+}
+
+function reveal(){
+  var t = FLAT[SEL];
+  if (!t) { return; }
+  try { shell.Run('explorer.exe /select,"' + BASE + "\\" + t.rel + '"', 1, false); } catch (e) {}
+}
+
+/* ---------------------------------------------------------------------------
+   Eject. Three problems this has to solve:
+   1. Anything still running FROM the stick blocks the eject and risks
+      corruption. Find those and name them, rather than letting Windows throw
+      its useless "device is in use" box.
+   2. This launcher itself holds a handle on Lazarus.hta, so it cannot eject
+      the drive it is reading from. The helper is written to %TEMP% (off the
+      stick), so it survives us closing.
+   3. If the direct eject is still refused, fall back to opening Windows'
+      Safely Remove Hardware dialog so the user is never stuck.
+--------------------------------------------------------------------------- */
+function driveLetter(){ return BASE.substring(0, 2).toUpperCase(); }
+
+function busyProcesses(){
+  var hits = [], seen = {};
+  var drv = driveLetter();
+  try {
+    var wmi = GetObject("winmgmts:\\\\.\\root\\cimv2");
+    var e = new Enumerator(wmi.ExecQuery("SELECT Name,ExecutablePath FROM Win32_Process"));
+    for (; !e.atEnd(); e.moveNext()) {
+      var p = e.item();
+      var path = p.ExecutablePath;
+      if (path && path.length > 1 && path.substring(0, 2).toUpperCase() === drv) {
+        if (!seen[p.Name]) { seen[p.Name] = 1; hits[hits.length] = p.Name; }
+      }
+    }
+  } catch (err) { /* WMI unavailable: fall through and let Windows decide */ }
+  return hits;
+}
+
+function eject(){
+  var drv = driveLetter();
+  var busy = busyProcesses();
+  if (busy.length) {
+    alert("Cannot eject " + drv + " yet.\n\n"
+        + "These are still running from the drive:\n\n    "
+        + busy.join("\n    ")
+        + "\n\nClose them, then press Eject again.");
+    return;
+  }
+  if (!confirm("Eject " + drv + " ?\n\nLazarus will close, then the drive is released.")) { return; }
+
+  var b = document.getElementById("ejectbtn");
+  b.className = "busy"; b.innerHTML = "OUT";
+
+  try {
+    var tmp = shell.ExpandEnvironmentStrings("%TEMP%") + "\\lazarus_eject.vbs";
+    var f = fso.CreateTextFile(tmp, true);
+    f.WriteLine("' written by Lazarus. Runs off the stick so it outlives the launcher.");
+    f.WriteLine("On Error Resume Next");
+    f.WriteLine("WScript.Sleep 1500");
+    f.WriteLine("Set sh   = CreateObject(\"Shell.Application\")");
+    f.WriteLine("Set fsov = CreateObject(\"Scripting.FileSystemObject\")");
+    f.WriteLine("gone = False");
+    f.WriteLine("For attempt = 1 To 3");
+    f.WriteLine("  For Each it In sh.Namespace(17).Items");
+    f.WriteLine("    If UCase(Left(it.Path, 2)) = UCase(\"" + drv + "\") Then");
+    f.WriteLine("      it.InvokeVerb \"Eject\"");
+    f.WriteLine("      For Each vb In it.Verbs");
+    f.WriteLine("        If InStr(LCase(Replace(vb.Name, \"&\", \"\")), \"ject\") > 0 Then vb.DoIt");
+    f.WriteLine("      Next");
+    f.WriteLine("    End If");
+    f.WriteLine("  Next");
+    f.WriteLine("  WScript.Sleep 1400");
+    f.WriteLine("  If Not fsov.DriveExists(\"" + drv + "\") Then");
+    f.WriteLine("    gone = True");
+    f.WriteLine("    Exit For");
+    f.WriteLine("  End If");
+    f.WriteLine("Next");
+    f.WriteLine("If Not gone Then");
+    f.WriteLine("  MsgBox \"Windows would not release " + drv + " yet.\" & vbCrLf & vbCrLf & _");
+    f.WriteLine("    \"Something still has a file or folder open on the stick.\" & vbCrLf & _");
+    f.WriteLine("    \"Close any Explorer window showing the drive, then try again.\" & vbCrLf & vbCrLf & _");
+    f.WriteLine("    \"If it still refuses, the tray icon for Safely Remove Hardware\" & vbCrLf & _");
+    f.WriteLine("    \"will name whatever is holding it.\", 48, \"Lazarus\"");
+    f.WriteLine("End If");
+    f.WriteLine("fsov.DeleteFile WScript.ScriptFullName, True");
+    f.Close();
+    shell.Run("wscript.exe \"" + tmp + "\"", 0, false);
+    window.close();
+  } catch (e) {
+    b.className = ""; b.innerHTML = "&#9167;";
+    alert("Could not start the eject helper:\n\n" + e.message
+        + "\n\nUse the Safely Remove Hardware icon in the system tray instead.");
+  }
+}
+
+function filter(ev){
+  if (ev && ev.keyCode === 27) { document.getElementById("search").value = ""; }
+  var q = document.getElementById("search").value.toLowerCase();
+  for (var i = 0; i < FLAT.length; i++) {
+    var el = document.getElementById("lf"+i);
+    if (!el) { continue; }
+    el.style.display = (q === "" || el.getAttribute("data-f").indexOf(q) > -1) ? "" : "none";
+  }
+  for (var g = 0; g < DATA.length; g++) {
+    var k = document.getElementById("kd"+g), c = document.getElementById("cv"+g);
+    if (q !== "" && k.className.indexOf("cl") > -1) { k.className="kids"; c.innerHTML="&#9660;"; }
+  }
+}
+
+window.onload = function(){
+  var w = 440, h = 880;
+  try { var mh = screen.availHeight - 40; if (h > mh) { h = mh; } } catch (e) {}
+  window.resizeTo(w, h);
+  try { window.moveTo(screen.availWidth - w - 14, screen.availHeight - h - 14); } catch (e) {}
+  build();
+};
+</script>
+</body>
+</html>
