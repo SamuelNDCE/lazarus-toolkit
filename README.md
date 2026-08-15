@@ -70,6 +70,23 @@ Read-only checks only. Nothing that changes a machine ever runs without somebody
 Windows 10 or 11, Windows PowerShell 5.1 (built in, no install). Administrator for the
 checks that need it: SMART, BitLocker, battery capacity, and any repair.
 
+## Checks
+
+```powershell
+.\Tests\Run-Checks.ps1                          # this checkout
+.\Tests\Run-Checks.ps1 -Root D:\Tools\HealthReport   # a deployed stick
+```
+
+Exits 0 or a failure count, so it can gate a commit. It verifies syntax, that every command
+resolves, that no function is used before it is defined, that there are no duplicate
+functions or dead variables, and the project-specific rules (unique menu keys, the QuickEdit
+guard present, the DISM watchdog wired to both DISM calls).
+
+It also runs each checker against `Tests/Fixtures/broken.ps1`, a deliberately wrong file, to
+prove the checkers themselves still fail when they should. That is not ceremony: the
+dead-variable check was silently a no-op for a while, because a hashtable key named `keys`
+shadowed the `.Keys` member, and it reported a clean project having examined nothing.
+
 ## Design notes
 
 These are worth reading if you are modifying it, because most are scars.
