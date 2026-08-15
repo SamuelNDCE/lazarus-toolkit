@@ -142,11 +142,37 @@ function Get-CbsSrLines {
 function Get-SfcDetail($SrLines) {
     if ($null -eq $SrLines) { return @('CBS.log is not present, so no SFC detail is available.') }
     if (-not $SrLines.Count) { return @('No [SR] entries could be read from the recent part of CBS.log.') }
-    $keep = $SrLines | Where-Object {
-        $_ -match 'Cannot repair|Repairing corrupted|successfully repaired|is corrupt|Verify complete|No errors detected|Verifying \d+ components'
-    } | Select-Object -Last 30
-    if (-not $keep) { $keep = $SrLines | Select-Object -Last 10 }
-    $keep | ForEach-Object { ($_ -replace '^.*\[SR\]\s*', '') }
+    # ONLY lines that carry a finding. "Verifying 100 components" and
+    # "Verify complete" were in this filter and are the overwhelming
+    # majority of [SR] output on a healthy machine, so a clean run printed
+    # thirty lines alternating between those two and told the reader
+    # nothing whatsoever. Observed on a real run: 30 lines, zero content.
+    #
+    # Those lines are not worthless, they are just not worth thirty lines.
+    # They get counted into one sentence below instead.
+    $keep = @($SrLines | Where-Object {
+        $_ -match 'Cannot repair|Repairing corrupted|successfully repaired|is corrupt|could not be repaired'
+    } | Select-Object -Last 30)
+
+    if ($keep.Count) { return $keep | ForEach-Object { ($_ -replace '^.*\[SR\]\s*', '') } }
+
+    # Nothing was repaired, so say that in one line.
+    #
+    # This deliberately does NOT report a component count, though the
+    # numbers are right there in the text. Get-CbsSrLines reads a fixed
+    # 8000 line tail, which spans BOTH SFC passes and any earlier run on
+    # the same machine, so summing them gave 20,235 components for a run
+    # where a single pass verified about 1,435. A precise-looking figure
+    # that is 14x too high is worse than no figure: nobody can tell it is
+    # wrong by looking at it.
+    #
+    # Scoping it properly means recording the log length before the pass
+    # and reading only what is new. Worth doing, not worth guessing at.
+    $verified = @($SrLines | Where-Object { $_ -match 'Verifying \d+ components' }).Count
+    if ($verified -gt 0) {
+        return @('SFC verified the protected files and found no integrity violations. Nothing needed repairing.')
+    }
+    return @('No repair entries in CBS.log. SFC recorded nothing that needed fixing.')
 }
 
 # Same treatment as CBS.log above, and for the same reason: this runs
@@ -160,10 +186,20 @@ function Get-DismDetail {
         try { Get-Content $p -Tail 400 -ErrorAction Stop } catch { }
     } $d 120
     if ($null -eq $tail) { return @('Could not read dism.log in time, so no DISM detail is available.') }
-    $keep = @($tail) | Where-Object {
-        $_ -match 'Error|Warning|corrupt|repair|The restore operation|successfully|Failed'
-    } | Select-Object -Last 25
-    if (-not $keep) { return @('DISM logged nothing notable in its last 400 lines.') }
+    # 'successfully' was in this filter and is the problem: dism.log is
+    # full of "Successfully loaded the ImageSession" and "Successfully
+    # enqueued command object", which are startup chatter every run emits
+    # whatever the outcome. A real run printed 20 lines of it and not one
+    # word about what DISM actually did.
+    #
+    # So: match on outcome words only, then drop the known plumbing even
+    # when it happens to contain one. Excluding by component name is more
+    # durable than trying to write a regex that never matches chatter.
+    $noise = 'CDISMManager|ImageSession|CommandObject|provider store|CCommandThread|Provider Store|DISMManager'
+    $keep = @(@($tail) | Where-Object {
+        $_ -match 'Error|Warning|corrupt|repair|The restore operation|Failed' -and $_ -notmatch $noise
+    } | Select-Object -Last 25)
+    if (-not $keep.Count) { return @('DISM completed and logged no errors, warnings or repairs.') }
     $keep | ForEach-Object { ($_ -replace '^\d{4}-\d\d-\d\d \d\d:\d\d:\d\d, ', '') }
 }
 
@@ -202,7 +238,27 @@ function Get-SfcVerdict($SrLines) {
 }
 
 $verdicts = [System.Collections.ArrayList]@()
-function Verdict($m) { [void]$verdicts.Add($m) }
+# A later verdict about the same subject REPLACES the earlier one rather
+# than sitting beside it.
+#
+# The summary is the only part most people read, and it used to be an
+# append-only list, so a repair that reported twice reported twice. A
+# real run ended with both "system files: intact" and "system files:
+# repaired" in a four-line summary, because SFC ran before and after
+# DISM and each pass added its own line. Contradicting itself in the
+# summary costs more trust than any single wrong line elsewhere.
+#
+# Keyed on the text before the first colon, which is how every verdict
+# here is already phrased ("system files: ...", "disk C: ..."), so
+# different subjects never collide. Identical messages dedupe as a
+# side effect, which is also what you want.
+function Verdict($m) {
+    $key = ($m -split ':', 2)[0].Trim()
+    for ($i = $verdicts.Count - 1; $i -ge 0; $i--) {
+        if ((($verdicts[$i] -split ':', 2)[0].Trim()) -eq $key) { $verdicts.RemoveAt($i) }
+    }
+    [void]$verdicts.Add($m)
+}
 
 # =====================================================================
 #  THE MENU
@@ -932,6 +988,30 @@ function Start-StallWatch {
     $ps = [PowerShell]::Create()
     [void]$ps.AddScript({
         param($log, $tool, $warnM, $deadM)
+
+        # Colour, matching the rest of the tool: !! is yellow, XX is red.
+        # This was the ONLY place in either script printing a warning in
+        # plain white, so a stall notice looked like ordinary progress
+        # text at exactly the moment it needed to stand out.
+        #
+        # Write-Host is not available here. A runspace created this way
+        # has no host UI, so Write-Host writes nowhere and -ForegroundColor
+        # with it does nothing at all. [Console] is process-wide, which is
+        # why the plain WriteLine reached the screen in the first place,
+        # and its ForegroundColor is settable from this thread.
+        #
+        # Restores the previous colour rather than assuming white, and
+        # falls back to an uncoloured line if the console rejects it,
+        # which happens when output is redirected to a file. A warning
+        # that fails to print is far worse than one that prints plainly.
+        function Say($text, $colour) {
+            try {
+                $prev = [Console]::ForegroundColor
+                [Console]::ForegroundColor = $colour
+                try { [Console]::WriteLine($text) } finally { [Console]::ForegroundColor = $prev }
+            } catch { [Console]::WriteLine($text) }
+        }
+
         $lastWarn = 0
         $lastSize = -1
         while ($true) {
@@ -954,15 +1034,15 @@ function Start-StallWatch {
                 if ($age -ge $deadM -and $lastWarn -lt $deadM) {
                     $lastWarn = $age
                     [Console]::WriteLine('')
-                    [Console]::WriteLine("    XX  $tool has written nothing for $age minutes. It is almost certainly stuck.")
-                    [Console]::WriteLine('        This is a Windows fault, not a fault in this tool. Press Ctrl+C,')
-                    [Console]::WriteLine('        reboot, and run this again. Nothing has been half-applied.')
+                    Say "    XX  $tool has written nothing for $age minutes. It is almost certainly stuck." 'Red'
+                    Say '        This is a Windows fault, not a fault in this tool. Press Ctrl+C,' 'Red'
+                    Say '        reboot, and run this again. Nothing has been half-applied.' 'Red'
                 } elseif ($age -ge $warnM -and $lastWarn -eq 0) {
                     $lastWarn = $age
                     [Console]::WriteLine('')
-                    [Console]::WriteLine("    !!  $tool has written nothing to its log for $age minutes.")
-                    [Console]::WriteLine('        It may still be working. If its percentage has not moved either,')
-                    [Console]::WriteLine("        give it until $deadM minutes and then treat it as stuck.")
+                    Say "    !!  $tool has written nothing to its log for $age minutes." 'Yellow'
+                    Say '        It may still be working. If its percentage has not moved either,' 'Yellow'
+                    Say "        give it until $deadM minutes and then treat it as stuck." 'Yellow'
                 }
             } catch { }
         }
@@ -1104,8 +1184,26 @@ if (On '1') {
         $sr2  = Get-CbsSrLines
         $sfc2 = Get-SfcVerdict $sr2
         Add-Detail 'SFC pass 2, from CBS.log:' (Get-SfcDetail $sr2)
+        # "Repaired" only if something was actually repaired.
+        #
+        # A real run reported BOTH "system files: intact" and "system
+        # files: repaired" in the same summary, because pass 1 was clean
+        # (intact), DISM was forced, and pass 2 was also clean, which this
+        # branch called "repaired". Nothing had been wrong and nothing was
+        # fixed. Two contradictory lines in a four-line summary is the
+        # fastest way to make somebody stop believing the whole report.
+        #
+        # Pass 1 clean AND pass 2 clean means verified twice, not mended.
         switch ($sfc2) {
-            'clean'    { Good 'SFC pass 2: clean. The machine is repaired.'; Verdict 'system files: repaired' }
+            'clean'    {
+                if ($sfc1 -eq 'clean') {
+                    Good 'SFC pass 2: clean, same as pass 1. Nothing needed repairing.'
+                    Verdict 'system files: intact, verified before and after DISM'
+                } else {
+                    Good 'SFC pass 2: clean. The machine is repaired.'
+                    Verdict 'system files: repaired'
+                }
+            }
             'repaired' { Good 'SFC pass 2: repaired the remaining files'; Verdict 'system files: repaired' }
             'stuck'    {
                 Fail 'SFC still cannot repair some files after DISM.'
