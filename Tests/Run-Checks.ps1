@@ -218,6 +218,19 @@ if (Test-Path $wdTest) {
     Check 'watchdog test present' $false 'Tests\test-watchdogs.ps1 is missing'
 }
 
+Section 'THE REPORT ALWAYS LANDS SOMEWHERE'
+# A read-only install folder used to mean the report was simply lost,
+# after minutes of checks on somebody's machine, with the console about
+# to close.
+$saveTest = Join-Path $PSScriptRoot 'test-savepath.ps1'
+if (Test-Path $saveTest) {
+    & $saveTest -Root $Root *>$null
+    Check 'report falls back to a writable folder when the tool folder is not' ($LASTEXITCODE -eq 0) `
+          'run Tests\test-savepath.ps1 for the detail'
+} else {
+    Check 'save-path test present' $false 'Tests\test-savepath.ps1 is missing'
+}
+
 Section 'RECOVERY'
 $retryTest = Join-Path $PSScriptRoot 'test-retry.ps1'
 if (Test-Path $retryTest) {

@@ -880,10 +880,21 @@ if ($pend.Count) {
 Write-Host ''
 Write-Host '   ==========================================' -ForegroundColor Cyan
 [void]$out.Add(''); [void]$out.Add('VERDICT')
+# EVERY issue is listed here, faults and warnings both.
+#
+# The warnings used to be counted on screen ("USABLE, with 6 things to
+# note") and then written only into the saved file. So the closing
+# summary, which is the part somebody actually reads before deciding what
+# to do, named a number and not one of the six things. Worse, when there
+# was a fault as well, the warnings were not shown at all: the run ended
+# on "NOT READY: 1 problem" with six more findings invisible unless you
+# scrolled back through the whole report or opened the file.
+#
+# This is the last thing on screen. It has to be the complete list.
 if ($bad.Count) {
     Write-Host "    NOT READY: $($bad.Count) problem(s)" -ForegroundColor Red
     [void]$out.Add("NOT READY: $($bad.Count) problem(s)")
-    foreach ($b in $bad) { Write-Host "      - $b" -ForegroundColor Red; [void]$out.Add("  - $b") }
+    foreach ($b in $bad) { Write-Host "      XX $b" -ForegroundColor Red; [void]$out.Add("  - $b") }
 } elseif ($warn.Count) {
     Write-Host "    USABLE, with $($warn.Count) thing(s) to note" -ForegroundColor Yellow
     [void]$out.Add("USABLE, with $($warn.Count) thing(s) to note")
@@ -891,7 +902,16 @@ if ($bad.Count) {
     Write-Host '    READY TO HAND OVER' -ForegroundColor Green
     [void]$out.Add('READY TO HAND OVER')
 }
-if ($warn.Count) { foreach ($w in $warn) { [void]$out.Add("  ! $w") } }
+if ($warn.Count) {
+    if ($bad.Count) {
+        Write-Host ''
+        Write-Host "    ...and $($warn.Count) thing(s) to note:" -ForegroundColor Yellow
+    }
+    foreach ($w in $warn) {
+        Write-Host "      !! $w" -ForegroundColor Yellow
+        [void]$out.Add("  ! $w")
+    }
+}
 Write-Host '   ==========================================' -ForegroundColor Cyan
 
 # DIAGNOSTICS. Anything that went wrong during the run, into the saved
@@ -926,11 +946,72 @@ if ($ourFaults.Count) {
     Write-Host '     findings above are unaffected.)' -ForegroundColor DarkGray
 }
 
-# Save next to this script, so on the stick every laptop collects here.
+# WHERE THE REPORT GOES.
+#
+# Next to the tool first, because on a USB stick that means every machine
+# you touch collects in one folder, which is the whole point of carrying
+# it. That is also "where it is installed" when somebody has copied this
+# onto a PC.
+#
+# But that location is not always writable. Run from Program Files, from
+# a read-only stick, or from a network share, and Set-Content throws. The
+# old code caught that and printed "could not save", and the entire
+# report was then LOST: minutes of checks on somebody's machine, gone,
+# with the console about to close.
+#
+# So it falls back, in order of how findable the file is afterwards, and
+# always says exactly where the file went. A report saved somewhere
+# unexpected is recoverable; a report not saved at all is not.
+function Get-ReportPath {
+    # -PrimaryDir rather than reading $PSScriptRoot inside: a function
+    # that reaches for an automatic variable cannot be tested, because
+    # $PSScriptRoot is whatever the CALLER's file is. The first test of
+    # this reported a failure that was purely an artefact of that.
+    param(
+        [string]$Leaf,
+        [string]$PrimaryDir = $PSScriptRoot
+    )
+    $candidates = @(
+        $PrimaryDir                                                      # beside the tool
+        (Join-Path ([Environment]::GetFolderPath('MyDocuments')) 'Lazarus Reports')
+        (Join-Path ([Environment]::GetFolderPath('Desktop')) 'Lazarus Reports')
+        $env:TEMP                                                        # last resort
+    )
+    foreach ($dir in $candidates) {
+        if (-not $dir) { continue }
+        try {
+            if (-not (Test-Path $dir)) { New-Item -ItemType Directory -Path $dir -Force -ErrorAction Stop | Out-Null }
+            # Prove it is writable rather than assuming. A folder can
+            # exist and still refuse a write.
+            $probe = Join-Path $dir ('.w' + [guid]::NewGuid().ToString('N').Substring(0, 6))
+            [System.IO.File]::WriteAllText($probe, 'x')
+            [System.IO.File]::Delete($probe)
+            return (Join-Path $dir $Leaf)
+        } catch { continue }
+    }
+    return $null
+}
+
 $stamp = Get-Date -f 'yyyy-MM-dd_HHmm'
-$file  = Join-Path $PSScriptRoot ("report-$env:COMPUTERNAME-$stamp.txt")
-try { $out -join "`r`n" | Set-Content $file -Encoding UTF8; Write-Host ''; Write-Host "    Saved: $file" -ForegroundColor DarkGray }
-catch { Write-Host ''; Write-Host "    Could not save the report: $($_.Exception.Message)" -ForegroundColor Red }
+$file  = Get-ReportPath "report-$env:COMPUTERNAME-$stamp.txt"
+if ($file) {
+    try {
+        $out -join "`r`n" | Set-Content $file -Encoding UTF8
+        Write-Host ''
+        Write-Host "    Saved: $file" -ForegroundColor DarkGray
+        if ((Split-Path $file -Parent) -ne $PSScriptRoot) {
+            Write-Host '           (the tool folder was not writable, so it went here instead)' -ForegroundColor DarkGray
+        }
+    } catch {
+        Write-Host ''
+        Write-Host "    Could not save the report: $($_.Exception.Message)" -ForegroundColor Red
+        $file = $null
+    }
+} else {
+    Write-Host ''
+    Write-Host '    Could not find anywhere writable to save the report.' -ForegroundColor Red
+    Write-Host '    Everything found is on screen above. Scroll up before closing this.' -ForegroundColor Yellow
+}
 
 # The readable copy. Failing to write it must never take the run down
 # with it: the .txt above is the record that matters and it is already
@@ -939,7 +1020,11 @@ $verdictText = if ($bad.Count) { "NOT READY: $($bad.Count) fault(s) need attenti
                elseif ($warn.Count) { "USABLE, with $($warn.Count) thing(s) to note" }
                else { 'READY TO HAND OVER' }
 try {
-    $mdFile = Join-Path $PSScriptRoot ("report-$env:COMPUTERNAME-$stamp.md")
+    # Beside the .txt, wherever that ended up, so the pair never get
+    # separated. Falls back the same way if the tool folder was read-only.
+    $mdLeaf = "report-$env:COMPUTERNAME-$stamp.md"
+    $mdFile = if ($file) { Join-Path (Split-Path $file -Parent) $mdLeaf } else { Get-ReportPath $mdLeaf }
+    if (-not $mdFile) { throw 'nowhere writable' }
     Write-MarkdownReport -Lines $out -Path $mdFile -Verdict $verdictText -WarnCount $warn.Count -BadCount $bad.Count
     Write-Host "    Saved: $mdFile" -ForegroundColor DarkGray
     Write-Host '           (the readable copy: pastes into a ticket, or hand it to an AI)' -ForegroundColor DarkGray
