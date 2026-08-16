@@ -28,7 +28,7 @@ $Script:CanAnimate = -not [Console]::IsOutputRedirected
 #  Common.ps1 is dot-sourced by every script here, so this is the one
 #  definition. Bump it whenever the tool changes.
 # ---------------------------------------------------------------------
-$Script:ToolVersion = '1.2.1'
+$Script:ToolVersion = '1.2.2'
 
 
 # ---------------------------------------------------------------------
@@ -1033,7 +1033,13 @@ function Show-Picker {
         [string]$Title       = 'CHOOSE',
         [string]$StartLabel  = 'START',
         [string]$CancelLabel = 'Cancel, change nothing',
-        [string]$Hint        = '',
+        # [string[]], NOT [string]. Typed as a single string, PowerShell
+        # silently JOINS an array argument with spaces, so a four-line
+        # hint arrived as one 300-character line. It then counted as ONE
+        # header row and rendered as four wrapped ones, which is a
+        # three-row undercount, a frame taller than the window, and the
+        # stacked-frames bug again by a third route.
+        [string[]]$Hint      = @(),
         [switch]$ShowTime,
         # Add "tick everything" and "skip everything" rows, and say in the
         # header that leaving it all on is the recommendation.
@@ -1123,11 +1129,30 @@ function Show-Picker {
 
     $headerColour = @('Gray','Cyan','Cyan','DarkGray','Cyan','Gray') +
                     @('DarkGray') * ($headerText.Count - 6)
+
+    # EVERY LINE IS CUT TO THE WIDTH, not just padded to it.
+    #
+    # PadRight only ever makes a line longer. A line already wider than
+    # the window is left alone, the terminal wraps it, and one row of
+    # frame quietly becomes two or three. Nothing in the height
+    # arithmetic can see that, so the frame is taller than anything
+    # measured it to be and the console scrolls: the same stacked-frames
+    # failure, arriving through the text rather than through the row
+    # count.
+    #
+    # This is the general guard. It makes the frame height depend only
+    # on the NUMBER of lines, which is the thing that is actually
+    # counted, and never on how long any of them happens to be.
+    $headerText = @($headerText | ForEach-Object {
+        $t = [string]$_
+        if ($t.Length -gt $width) { $t = $t.Substring(0, $width) }
+        $t.PadRight($width)
+    })
     $HeaderLines = $headerText.Count
 
     $drawHeader = {
         for ($hn = 0; $hn -lt $headerText.Count; $hn++) {
-            Paint ($headerText[$hn].PadRight($width)) $headerColour[$hn]
+            Paint $headerText[$hn] $headerColour[$hn]
         }
     }
 
@@ -1142,15 +1167,33 @@ function Show-Picker {
       $paint = -not $silent
       $frame = New-Object System.Collections.ArrayList
 
+      # ONE line in, ONE row on screen. Both of these cut to the width
+      # before adding to the frame, so no caller can make a line that
+      # wraps.
+      #
+      # That guarantee is what the whole height calculation rests on: it
+      # counts LINES, and a line only costs one row if it fits. A single
+      # over-width string turns one counted row into two or three real
+      # ones, the frame outgrows the window, the console scrolls, and
+      # every keypress stacks another copy of the menu. Three separate
+      # bugs in this file have now had that same ending, so the guard
+      # lives here rather than at each call site where the next one can
+      # forget it.
+      function Fit($text) {
+          $t = [string]$text
+          if ($t.Length -gt $width) { $t = $t.Substring(0, $width) }
+          return $t.PadRight($width)
+      }
       # Paint: a line that is only ever drawn (header, markers, detail).
       function Paint($text, $colour = 'Gray') {
-          if ($paint) { [void]$frame.Add([pscustomobject]@{ T = $text; C = $colour }) }
+          if ($paint) { [void]$frame.Add([pscustomobject]@{ T = (Fit $text); C = $colour }) }
       }
       # Emit: an option row. Also recorded in LastRender, which is how the
       # silent test mode inspects the row layout without a console.
       function Emit($text, $colour = 'Gray') {
-          [void]$Script:LastRender.Add($text)
-          if ($paint) { [void]$frame.Add([pscustomobject]@{ T = $text; C = $colour }) }
+          $t = Fit $text
+          [void]$Script:LastRender.Add($t)
+          if ($paint) { [void]$frame.Add([pscustomobject]@{ T = $t; C = $colour }) }
       }
 
       if ($paint) { & $drawHeader }

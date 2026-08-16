@@ -191,6 +191,48 @@ $r = Show-Picker -Items $items -ShowAllNone -TestKeys @(40, 40, 40, 40, 13, 27)
 Check 'without -SkipProceeds the skip row does not proceed' ($r -eq $false)
 
 Write-Host ''
+Write-Host 'NO LINE MAY WRAP' -ForegroundColor Cyan
+
+# THE THIRD ROUTE TO THE SAME BUG.
+#
+# The height arithmetic counts LINES. A line only costs one row if it
+# fits the width; an over-width one wraps and costs two or three, which
+# nothing measuring the frame can see. Frame outgrows window, console
+# scrolls, anchor goes stale, menus stack.
+#
+# It happened because -Hint was typed [string] rather than [string[]],
+# so PowerShell silently joined a four-line array into one 300-character
+# line: counted as one row, drawn as four.
+$items = NewItems
+$null = Show-Picker -Items $items -ShowAllNone `
+        -Title 'A title that is quite long but still sensible for a tool like this' `
+        -Hint @('    line one of the hint', '    line two of the hint') `
+        -StartLabel 'CONTINUE  ->  run the report  (recommended)' `
+        -SkipLabel  'SKIP THE REPORT  ->  go straight to the repairs' `
+        -CancelLabel 'Quit. Do not report, do not repair.' -TestKeys @(27)
+$rendered = @($Script:LastRender)
+$tooWide = @($rendered | Where-Object { $_.Length -gt 78 })
+Check 'no rendered row is wider than the frame' ($tooWide.Count -eq 0) `
+      $(if ($tooWide.Count) { "$($tooWide.Count) over-wide, longest $(($tooWide | Measure-Object Length -Maximum).Maximum)" })
+
+# An absurdly long label must be CUT, not allowed to wrap.
+$items = NewItems
+$null = Show-Picker -Items $items -ShowAllNone -SkipLabel ('X' * 400) -TestKeys @(27)
+$rendered = @($Script:LastRender)
+Check 'a 400-character label is truncated, not wrapped' `
+      (@($rendered | Where-Object { $_.Length -gt 78 }).Count -eq 0)
+
+# And a multi-line hint must survive as MULTIPLE lines rather than being
+# joined into one. Proven through the header height the picker derives.
+$common = Get-Content (Join-Path $Root 'Common.ps1') -Raw
+Check 'Hint is [string[]], so an array is not joined into one line' `
+      ($common -match '\[string\[\]\]\$Hint') `
+      '[string]$Hint silently joins an array with spaces'
+Check 'Paint and Emit cut every line to the width' `
+      ($common -match 'function Fit\(\$text\)') `
+      'PadRight only lengthens; something must also truncate'
+
+Write-Host ''
 Write-Host 'THE FRAME MUST FIT THE WINDOW' -ForegroundColor Cyan
 
 # THE BUG THIS EXISTS FOR, twice now.

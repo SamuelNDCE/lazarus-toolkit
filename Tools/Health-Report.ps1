@@ -399,12 +399,8 @@ if (-not $Script:Unattended) {
             if (-not (Show-Picker -Items $Script:Sections `
                       -Title 'STEP 1 of 2:  THE HEALTH REPORT  (reads only, changes nothing)' `
                       -Hint @(
-                          '    Up and Down to move.  ENTER switches an option on or off.',
-                          '',
-                          '    STEP 1, this screen: the REPORT. It looks at the machine and',
-                          '                         tells you what is wrong. It changes nothing.',
-                          '    STEP 2, afterwards:  the REPAIRS. Chosen separately, and the',
-                          '                         only half that can change this PC.'
+                          '    STEP 1, here:       the REPORT. Reads the PC, changes nothing.',
+                          '    STEP 2, afterwards: the REPAIRS. Chosen separately.'
                       ) `
                       -StartLabel  'CONTINUE  ->  run the report  (recommended)' `
                       -AllOnLabel  'Turn every option ON  (recommended)' `
