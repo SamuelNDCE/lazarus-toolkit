@@ -113,22 +113,29 @@ health-report -NoElevate             # deliberately run as a standard user
 | `P` | Installed programs | Full program list, cross-checked against the registry |
 | `U` | Windows Update | Recent installs and failures |
 | `E` | Pending reboot | Whether a restart is already queued |
+| `F` | Faults, last 14 days | Unexpected shutdowns, blue screens, disk errors, hardware faults |
+| `Y` | Reliability history | App crashes, hangs and failed updates, and when they started |
 | `W` | Save a report file | Untick to write nothing to disk |
 
 ## The repairs
 
-A menu of 15, chosen the same way. **Nothing is assumed.** Anything that modifies the machine is
-tagged `CHANGES`, is **off by default**, and offers a restore point first. The menu shows a time
+Chosen the same way. **Nothing is assumed.** Anything that modifies the machine is tagged
+`CHANGES`, is **off by default**, and offers a restore point first. The menu shows a time
 estimate and a plain description for whatever is highlighted.
+
+**Everything in this menu changes the machine.** The read-only checks that used to live here,
+the event log sweep and the reliability history, are report sections now: they collect what
+Windows already recorded and repair nothing, so a repair menu was the wrong place for them. A
+menu called "repair" whose entries mostly do not repair anything trains you to skim it, and the
+entries that *do* change a machine are the ones that must never be skimmed.
+
+The one exception is the disk check, which is read-only and stays, because the repair that fixes
+what it finds depends on it and `chkdsk` must not be run twice over one pass.
 
 | Repair | Changes the PC | Roughly |
 |---|---|---|
 | Repair system files: SFC, then DISM, then SFC | yes | 2 to 30 min |
 | Check the disk for errors (online, no reboot) | no | 1 to 15 min |
-| Read the drive's own SMART health data | no | seconds |
-| Sweep the event log for real faults | no | seconds |
-| Reliability history | no | seconds |
-| Find devices with missing or broken drivers | no | seconds |
 | Check whether this PC *can* install drivers (dry run) | no | under 3 min |
 | Install driver updates from Windows Update | yes | 1 to 15 min |
 | Also **repair** what the disk check finds | yes | varies |

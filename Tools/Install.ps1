@@ -56,7 +56,9 @@ Set-ConsoleLook 'Install: Health Report and Repair'
 $ProductName = 'Health Report and Repair'
 $ProductKey  = 'HealthReportAndRepair'
 $Publisher   = 'Perpetual Technologies'
-$Version     = '1.0.0'
+# Read from Common.ps1, which is dot-sourced above, so the installer
+# and the tool can never disagree about which version this is.
+$Version     = $Script:ToolVersion
 
 # Its OWN output helpers. Good, Warn and Info live in Health-Report.ps1
 # and Repair-Health.ps1, and both versions also append to that script's

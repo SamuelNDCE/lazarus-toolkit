@@ -1,4 +1,4 @@
-﻿<#
+<#
 =======================================================================
  HEALTH REPORT AND REPAIR
 
@@ -177,12 +177,44 @@ function Good($m) { Write-Host "    ok $m" -ForegroundColor Green;  [void]$out.A
 # a problem the report had just found, which is the whole job.
 function Info($m) { Write-Host "         $m" -ForegroundColor DarkGray; [void]$out.Add("       $m") }
 
+# ---------------------------------------------------------------------
+#  Ported from Repair-Health.ps1 with the event-log and reliability
+#  checks. Both are READ ONLY: they collect what Windows already
+#  recorded and change nothing, so they belong in the report rather than
+#  in a menu of repairs. A menu called "repair" whose entries do not
+#  repair anything trains people to skim it, and the entries that DO
+#  change the machine are the ones that must never be skimmed.
+#
+#  LogOnly writes to the saved report without printing. Add-Detail is
+#  the indented block underneath a finding. Verdict collects the
+#  one-line summaries, keyed on the text before the colon so a later
+#  call replaces an earlier one about the same thing rather than
+#  printing both.
+# ---------------------------------------------------------------------
+$verdicts = [System.Collections.ArrayList]@()
+function LogOnly($m) { [void]$out.Add($m) }
+function Add-Detail($Title, [string[]]$Lines) {
+    if (-not $Lines -or -not $Lines.Count) { return }
+    LogOnly ''
+    LogOnly "  $Title"
+    foreach ($l in $Lines) { LogOnly ('    ' + $l.TrimEnd()) }
+}
+function Verdict($m) {
+    $key = ($m -split ':', 2)[0].Trim()
+    for ($i = $verdicts.Count - 1; $i -ge 0; $i--) {
+        if ((($verdicts[$i] -split ':', 2)[0].Trim()) -eq $key) { $verdicts.RemoveAt($i) }
+    }
+    [void]$verdicts.Add($m)
+}
+
+
 Clear-Host
 Write-Host ''
 Write-Host '   ==========================================' -ForegroundColor Cyan
 Write-Host '    HEALTH REPORT AND REPAIR' -ForegroundColor Cyan
 Write-Host '   ==========================================' -ForegroundColor Cyan
-[void]$out.Add("HEALTH REPORT AND REPAIR")
+Write-Host "    v$Script:ToolVersion" -ForegroundColor DarkGray
+[void]$out.Add("HEALTH REPORT AND REPAIR  v$Script:ToolVersion")
 [void]$out.Add("Generated $(Get-Date -f 'yyyy-MM-dd HH:mm')")
 
 # =====================================================================
@@ -303,6 +335,10 @@ $Script:Sections = @(
         Desc='Recent update installs and failures. Where "why does this machine keep failing updates" is actually answered. Slower than most sections here.' }
     [pscustomobject]@{ Key='E'; On=$true; Name='Pending reboot check'
         Desc='Whether a restart is already queued. A machine with a reboot pending gives misleading results from almost every other check, and any repair run on it can half-apply. Fast, and worth leaving on.' }
+    [pscustomobject]@{ Key='F'; On=$true; Name='Faults in the last 14 days'
+        Desc='Unexpected shutdowns, blue screens, disk errors and hardware faults from the Windows event log. This is usually where the answer to "it keeps crashing" actually is. Read only: it collects what Windows already recorded.' }
+    [pscustomobject]@{ Key='Y'; On=$true; Name='Reliability history: what has been failing'
+        Desc='Windows keeps its own record of app crashes, hangs and failed updates. Good for spotting the exact day a machine went wrong. Read only.' }
     # Not a check. The last row is the one that decides whether any of
     # this is written down, and it is a row rather than a separate
     # question so there is one screen and one decision, not two.
@@ -314,7 +350,7 @@ function Include($k) {
     # Keyed on the section key, not the name, so renaming a section in
     # the picker cannot silently switch it off everywhere.
     $map = @{ machine='M'; activation='A'; battery='B'; storage='D'; memory='R'
-              drivers='V'; security='S'; state='T'; software='P'; updates='U'; reboot='E'; save='W' }
+              drivers='V'; security='S'; state='T'; software='P'; updates='U'; reboot='E'; faults='F'; reliability='Y'; save='W' }
     $key = $map[$k]
     if (-not $key) { return $true }   # an unmapped name is a bug, not a reason to skip a check
     return [bool](($Script:Sections | Where-Object { $_.Key -eq $key }).On)
@@ -1342,6 +1378,126 @@ if ($pend.Count) {
 } else { Good 'no reboot pending' }
 
 }   # end of the 'reboot' section
+
+if (Include 'faults') {
+    Sec 'Faults in the last 14 days'
+    $since = (Get-Date).AddDays(-14)
+
+    # Five separate queries over a fortnight of the System log, each of
+    # which prints nothing until it returns. On a busy or sick machine
+    # this is genuinely slow, so it runs behind one spinner.
+    $ev = Spin 'reading 14 days of the Windows event log' {
+        param($since)
+        [pscustomobject]@{
+            # Event 41 is Windows saying it was not shut down cleanly:
+            # the fingerprint of a crash, a freeze or a power cut.
+            K41  = @(Get-WinEvent -FilterHashtable @{LogName='System'; Id=41; StartTime=$since} -ErrorAction SilentlyContinue)
+            Bug  = @(Get-WinEvent -FilterHashtable @{LogName='System'; Id=1001; ProviderName='Microsoft-Windows-WER-SystemErrorReporting'; StartTime=$since} -ErrorAction SilentlyContinue)
+            # Disk 7/11/51 mean the hardware itself is struggling.
+            Disk = @(Get-WinEvent -FilterHashtable @{LogName='System'; ProviderName='disk'; StartTime=$since} -ErrorAction SilentlyContinue |
+                     Where-Object { $_.Id -in 7, 11, 51 })
+            Whea = @(Get-WinEvent -FilterHashtable @{LogName='System'; ProviderName='Microsoft-Windows-WHEA-Logger'; StartTime=$since} -ErrorAction SilentlyContinue)
+            Svc  = @(Get-WinEvent -FilterHashtable @{LogName='System'; Id=7000, 7001, 7026; StartTime=$since} -ErrorAction SilentlyContinue)
+        }
+    } $since 90
+
+    $k41 = @($ev.K41)
+    if ($k41.Count) {
+        Warn "$($k41.Count) unexpected shutdown(s) or crash(es). Most recent: $($k41[0].TimeCreated.ToString('yyyy-MM-dd HH:mm'))"
+        Verdict "$($k41.Count) unexpected shutdowns in 14 days"
+    } else { Good 'no unexpected shutdowns' }
+
+    $bug = @($ev.Bug)
+    if ($bug.Count) { Fail "$($bug.Count) blue screen(s) recorded"; Verdict "$($bug.Count) blue screens in 14 days" }
+    else { Good 'no blue screens recorded' }
+
+    $disk = @($ev.Disk)
+    if (-not $disk.Count) { Good 'no disk hardware errors' }
+    else {
+        # NAME THE DRIVE. The event says "\Device\Harddisk1", which means
+        # nothing to a person and is actively misleading: on one machine
+        # Harddisk1 was a USB stick, not the system SSD, so the blanket
+        # "dying drive" verdict would have sent someone to replace the
+        # wrong disk. Resolve the number to a real model first.
+        $diskMap = @{}
+        $physDrives = AsArray (Spin 'matching the event to a real drive' {
+            param($x)
+            Get-CimInstance Win32_DiskDrive -ErrorAction SilentlyContinue
+        } $null 60)
+        foreach ($dd in $physDrives) {
+            if ($dd.DeviceID -match 'PHYSICALDRIVE(\d+)') {
+                $diskMap[$matches[1]] = @{ Model = $dd.Model; Bus = $dd.InterfaceType }
+            }
+        }
+        $hit = @{}
+        foreach ($e in $disk) {
+            $n = if ($e.Message -match '\\Device\\Harddisk(\d+)') { $matches[1] } else { '?' }
+            if (-not $hit.ContainsKey($n)) { $hit[$n] = 0 }
+            $hit[$n]++
+        }
+        foreach ($n in $hit.Keys) {
+            $d2   = $diskMap[$n]
+            $name = if ($d2) { "$($d2.Model)" } else { "Harddisk$n (not currently attached)" }
+            $bus  = if ($d2) { $d2.Bus } else { $null }
+            Fail ("{0} disk error(s) on {1}" -f $hit[$n], $name)
+            if ($bus -eq 'USB') {
+                # A USB stick throwing paging errors is usually the cable,
+                # the port or the stick being yanked, not a failing system
+                # drive. Saying "dying drive" here would be wrong.
+                Info 'That is a USB device. On removable media this is usually a loose'
+                Info 'connection, a knocked cable or the stick being pulled out mid-write,'
+                Info 'rather than a failing internal disk. Reseat it and re-check.'
+                Verdict "disk errors on the USB device '$name', probably connection not failure"
+            } else {
+                Info 'On an internal drive treat this as a failing disk until proven otherwise.'
+                Info 'Back it up before anything else, then check SMART.'
+                Verdict "disk hardware errors on $name, treat as failing"
+            }
+        }
+    }
+
+    $whea = @($ev.Whea)
+    if ($whea.Count) { Warn "$($whea.Count) hardware error(s) reported by the CPU or chipset (WHEA)"; Verdict 'WHEA hardware errors logged' }
+    else { Good 'no CPU or chipset hardware errors' }
+
+    $svc = @($ev.Svc)
+    if ($svc.Count -gt 5) { Warn "$($svc.Count) service or driver start failures. Often a leftover from software that was removed badly." }
+
+    # A count is a headline, not evidence. Whoever reads this later needs
+    # the dates and the actual message to act on any of it, so the real
+    # entries go into the file even though only the counts go on screen.
+    function Fmt($events, $limit = 8) {
+        @($events | Select-Object -First $limit | ForEach-Object {
+            $msg = ($_.Message -split "`r?`n" | Where-Object { $_.Trim() } | Select-Object -First 2) -join ' '
+            "{0}  id {1}  {2}" -f $_.TimeCreated.ToString('yyyy-MM-dd HH:mm:ss'), $_.Id, $msg.Trim()
+        })
+    }
+    Add-Detail 'Unexpected shutdowns:'          (Fmt $k41)
+    Add-Detail 'Blue screens:'                  (Fmt $bug)
+    Add-Detail 'Disk hardware errors:'          (Fmt $disk)
+    Add-Detail 'CPU or chipset errors (WHEA):'  (Fmt $whea)
+    Add-Detail 'Service and driver failures:'   (Fmt $svc 12)
+}
+
+# =====================================================================
+#  5. Reliability history
+# =====================================================================
+if (Include 'reliability') {
+    Sec 'What has been failing'
+    $rr = AsArray (Spin 'reading the reliability history' {
+        param($x)
+        Get-CimInstance Win32_ReliabilityRecords -ErrorAction SilentlyContinue
+    } $null 60)
+    if (-not $rr.Count) { Info 'Windows has no reliability history on this machine yet.' }
+    else {
+        $top = $rr | Where-Object { $_.SourceName } | Group-Object SourceName |
+               Sort-Object Count -Descending | Select-Object -First 8
+        Info "$($rr.Count) recorded events. The most frequent sources:"
+        foreach ($g in $top) { Info ("  {0,-40} {1}" -f $g.Name, $g.Count) }
+        Info 'Full picture: run  perfmon /rel  for the graph version of this.'
+    }
+}
+
 # ------------------------------------------------------------ verdict
 Write-Host ''
 Write-Host '   ==========================================' -ForegroundColor Cyan

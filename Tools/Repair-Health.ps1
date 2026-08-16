@@ -1,4 +1,4 @@
-﻿<#
+<#
 =======================================================================
  DEEPER HEALTH CHECK AND REPAIR
 
@@ -311,14 +311,6 @@ $Tasks = @(
     [pscustomobject]@{ Key='3'; On=$true;  Changes=$false; Time='a few seconds';          Low=0;  High=1
         Name='Read the drive''s own SMART health data'
         Desc='Power-on hours, reallocated sectors, SSD write life, read and write error counts, straight from the drive firmware.' }
-
-    [pscustomobject]@{ Key='4'; On=$true;  Changes=$false; Time='a few seconds';          Low=0;  High=1
-        Name='Sweep the event log for real faults'
-        Desc='Last 14 days of unexpected shutdowns, blue screens, disk errors and hardware faults. This is usually where the answer to "it keeps crashing" actually is.' }
-
-    [pscustomobject]@{ Key='5'; On=$true;  Changes=$false; Time='a few seconds';          Low=0;  High=1
-        Name='Reliability history: what has been failing, and when'
-        Desc='Windows keeps its own record of app crashes, hangs and failed updates. Good for spotting the day a machine went wrong.' }
 
     [pscustomobject]@{ Key='6'; On=$true;  Changes=$false; Time='a few seconds';          Low=0;  High=1
         Name='Find devices with missing or broken drivers'
@@ -1137,128 +1129,6 @@ if (On '3') {
 
 # =====================================================================
 #  4. Event log
-# =====================================================================
-if (On '4') {
-    Sec 'Faults in the last 14 days'
-    $since = (Get-Date).AddDays(-14)
-
-    # Five separate queries over a fortnight of the System log, each of
-    # which prints nothing until it returns. On a busy or sick machine
-    # this is genuinely slow, so it runs behind one spinner.
-    $ev = Spin 'reading 14 days of the Windows event log' {
-        param($since)
-        [pscustomobject]@{
-            # Event 41 is Windows saying it was not shut down cleanly:
-            # the fingerprint of a crash, a freeze or a power cut.
-            K41  = @(Get-WinEvent -FilterHashtable @{LogName='System'; Id=41; StartTime=$since} -ErrorAction SilentlyContinue)
-            Bug  = @(Get-WinEvent -FilterHashtable @{LogName='System'; Id=1001; ProviderName='Microsoft-Windows-WER-SystemErrorReporting'; StartTime=$since} -ErrorAction SilentlyContinue)
-            # Disk 7/11/51 mean the hardware itself is struggling.
-            Disk = @(Get-WinEvent -FilterHashtable @{LogName='System'; ProviderName='disk'; StartTime=$since} -ErrorAction SilentlyContinue |
-                     Where-Object { $_.Id -in 7, 11, 51 })
-            Whea = @(Get-WinEvent -FilterHashtable @{LogName='System'; ProviderName='Microsoft-Windows-WHEA-Logger'; StartTime=$since} -ErrorAction SilentlyContinue)
-            Svc  = @(Get-WinEvent -FilterHashtable @{LogName='System'; Id=7000, 7001, 7026; StartTime=$since} -ErrorAction SilentlyContinue)
-        }
-    } $since 90
-
-    $k41 = @($ev.K41)
-    if ($k41.Count) {
-        Warn "$($k41.Count) unexpected shutdown(s) or crash(es). Most recent: $($k41[0].TimeCreated.ToString('yyyy-MM-dd HH:mm'))"
-        Verdict "$($k41.Count) unexpected shutdowns in 14 days"
-    } else { Good 'no unexpected shutdowns' }
-
-    $bug = @($ev.Bug)
-    if ($bug.Count) { Fail "$($bug.Count) blue screen(s) recorded"; Verdict "$($bug.Count) blue screens in 14 days" }
-    else { Good 'no blue screens recorded' }
-
-    $disk = @($ev.Disk)
-    if (-not $disk.Count) { Good 'no disk hardware errors' }
-    else {
-        # NAME THE DRIVE. The event says "\Device\Harddisk1", which means
-        # nothing to a person and is actively misleading: on one machine
-        # Harddisk1 was a USB stick, not the system SSD, so the blanket
-        # "dying drive" verdict would have sent someone to replace the
-        # wrong disk. Resolve the number to a real model first.
-        $diskMap = @{}
-        $physDrives = AsArray (Spin 'matching the event to a real drive' {
-            param($x)
-            Get-CimInstance Win32_DiskDrive -ErrorAction SilentlyContinue
-        } $null 60)
-        foreach ($dd in $physDrives) {
-            if ($dd.DeviceID -match 'PHYSICALDRIVE(\d+)') {
-                $diskMap[$matches[1]] = @{ Model = $dd.Model; Bus = $dd.InterfaceType }
-            }
-        }
-        $hit = @{}
-        foreach ($e in $disk) {
-            $n = if ($e.Message -match '\\Device\\Harddisk(\d+)') { $matches[1] } else { '?' }
-            if (-not $hit.ContainsKey($n)) { $hit[$n] = 0 }
-            $hit[$n]++
-        }
-        foreach ($n in $hit.Keys) {
-            $d2   = $diskMap[$n]
-            $name = if ($d2) { "$($d2.Model)" } else { "Harddisk$n (not currently attached)" }
-            $bus  = if ($d2) { $d2.Bus } else { $null }
-            Fail ("{0} disk error(s) on {1}" -f $hit[$n], $name)
-            if ($bus -eq 'USB') {
-                # A USB stick throwing paging errors is usually the cable,
-                # the port or the stick being yanked, not a failing system
-                # drive. Saying "dying drive" here would be wrong.
-                Info 'That is a USB device. On removable media this is usually a loose'
-                Info 'connection, a knocked cable or the stick being pulled out mid-write,'
-                Info 'rather than a failing internal disk. Reseat it and re-check.'
-                Verdict "disk errors on the USB device '$name', probably connection not failure"
-            } else {
-                Info 'On an internal drive treat this as a failing disk until proven otherwise.'
-                Info 'Back it up before anything else, then check SMART.'
-                Verdict "disk hardware errors on $name, treat as failing"
-            }
-        }
-    }
-
-    $whea = @($ev.Whea)
-    if ($whea.Count) { Warn "$($whea.Count) hardware error(s) reported by the CPU or chipset (WHEA)"; Verdict 'WHEA hardware errors logged' }
-    else { Good 'no CPU or chipset hardware errors' }
-
-    $svc = @($ev.Svc)
-    if ($svc.Count -gt 5) { Warn "$($svc.Count) service or driver start failures. Often a leftover from software that was removed badly." }
-
-    # A count is a headline, not evidence. Whoever reads this later needs
-    # the dates and the actual message to act on any of it, so the real
-    # entries go into the file even though only the counts go on screen.
-    function Fmt($events, $limit = 8) {
-        @($events | Select-Object -First $limit | ForEach-Object {
-            $msg = ($_.Message -split "`r?`n" | Where-Object { $_.Trim() } | Select-Object -First 2) -join ' '
-            "{0}  id {1}  {2}" -f $_.TimeCreated.ToString('yyyy-MM-dd HH:mm:ss'), $_.Id, $msg.Trim()
-        })
-    }
-    Add-Detail 'Unexpected shutdowns:'          (Fmt $k41)
-    Add-Detail 'Blue screens:'                  (Fmt $bug)
-    Add-Detail 'Disk hardware errors:'          (Fmt $disk)
-    Add-Detail 'CPU or chipset errors (WHEA):'  (Fmt $whea)
-    Add-Detail 'Service and driver failures:'   (Fmt $svc 12)
-}
-
-# =====================================================================
-#  5. Reliability history
-# =====================================================================
-if (On '5') {
-    Sec 'What has been failing'
-    $rr = AsArray (Spin 'reading the reliability history' {
-        param($x)
-        Get-CimInstance Win32_ReliabilityRecords -ErrorAction SilentlyContinue
-    } $null 60)
-    if (-not $rr.Count) { Info 'Windows has no reliability history on this machine yet.' }
-    else {
-        $top = $rr | Where-Object { $_.SourceName } | Group-Object SourceName |
-               Sort-Object Count -Descending | Select-Object -First 8
-        Info "$($rr.Count) recorded events. The most frequent sources:"
-        foreach ($g in $top) { Info ("  {0,-40} {1}" -f $g.Name, $g.Count) }
-        Info 'Full picture: run  perfmon /rel  for the graph version of this.'
-    }
-}
-
-# =====================================================================
-#  6. Driver faults
 # =====================================================================
 if (On '6') {
     Sec 'Devices with driver problems'

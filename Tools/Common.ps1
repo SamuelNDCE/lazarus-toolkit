@@ -1,4 +1,4 @@
-﻿# =====================================================================
+# =====================================================================
 #  SHARED BY Health-Report.ps1 AND Repair-Health.ps1
 #
 #  Dot-sourced by both. Do not run it on its own, it only defines things.
@@ -14,6 +14,22 @@
 # writes one enormous unreadable line instead, so it degrades to a
 # single plain line.
 $Script:CanAnimate = -not [Console]::IsOutputRedirected
+
+# ---------------------------------------------------------------------
+#  VERSION, in ONE place.
+#
+#  It lived only in Install.ps1, so the number that went into Add/Remove
+#  Programs was the only version that existed and nothing else could
+#  show it. A copy on a USB stick was then indistinguishable from a
+#  current one by looking at it, which is exactly the question you ask
+#  when a machine misbehaves and you cannot remember when you last
+#  refreshed the stick.
+#
+#  Common.ps1 is dot-sourced by every script here, so this is the one
+#  definition. Bump it whenever the tool changes.
+# ---------------------------------------------------------------------
+$Script:ToolVersion = '1.1.0'
+
 
 # ---------------------------------------------------------------------
 #  QUICK EDIT
