@@ -845,6 +845,116 @@ function Spin {
 }
 
 # =====================================================================
+#  MACHINE AND BIOS WITHOUT WMI
+#
+#  Make, model, motherboard, BIOS vendor, BIOS version, BIOS date, CPU
+#  and Windows edition are ALL in the registry, and reading them is
+#  instant. Windows populates HKLM\HARDWARE\DESCRIPTION\System\BIOS from
+#  SMBIOS at every boot, before anything WMI-related is running.
+#
+#  This exists because the first fix for a wedged WMI was to skip the
+#  Machine section, and that traded a twenty second hang for losing the
+#  single most useful thing in the report. "I never read the BIOS" is a
+#  fair complaint about a repair tool.
+#
+#  So the Machine section is registry FIRST, always, on every machine
+#  whether WMI is healthy or not, and WMI is only asked for the few
+#  things the registry genuinely does not hold. On a healthy PC this
+#  also removes four twenty-second timeouts from the critical path of
+#  the very first section, which is where a slow start is most visible.
+# =====================================================================
+function Get-BiosFactsNoWmi {
+    $f = @{}
+    try {
+        $b = Get-ItemProperty 'HKLM:\HARDWARE\DESCRIPTION\System\BIOS' -ErrorAction SilentlyContinue
+        if ($b) {
+            # "To be filled by O.E.M." is what a custom-built desktop puts
+            # in half of these. It is noise, not an answer, so it is
+            # dropped here rather than printed as if it meant something.
+            foreach ($k in 'SystemManufacturer','SystemProductName','SystemFamily','SystemSKU',
+                           'BaseBoardManufacturer','BaseBoardProduct','BaseBoardVersion',
+                           'BIOSVendor','BIOSVersion','BIOSReleaseDate') {
+                $v = "$($b.$k)".Trim()
+                if ($v -and $v -notmatch '^(To be filled by O\.?E\.?M\.?|System manufacturer|System Product Name|Default string|None|N/A)$') {
+                    $f[$k] = $v
+                }
+            }
+        }
+        $cpu = (Get-ItemProperty 'HKLM:\HARDWARE\DESCRIPTION\System\CentralProcessor\0' -ErrorAction SilentlyContinue).ProcessorNameString
+        if ($cpu) { $f['Cpu'] = "$cpu".Trim() }
+        $w = Get-ItemProperty 'HKLM:\SOFTWARE\Microsoft\Windows NT\CurrentVersion' -ErrorAction SilentlyContinue
+        if ($w) {
+            # ProductName still says "Windows 10 Pro" on Windows 11, which
+            # Microsoft never corrected. The build number is the honest
+            # answer: 22000 and above is 11.
+            $build = [int]$w.CurrentBuild
+            $name  = "$($w.ProductName)".Trim()
+            if ($build -ge 22000 -and $name -match 'Windows 10') { $name = $name -replace 'Windows 10', 'Windows 11' }
+            $f['Windows'] = ("{0} {1} (build {2}.{3})" -f $name, $w.DisplayVersion, $w.CurrentBuild, $w.UBR).Trim()
+        }
+    } catch { }
+    return $f
+}
+
+# The SERIAL NUMBER, which is the one thing above that is not sitting in
+# a named registry value. It is in the raw SMBIOS table, which Windows
+# caches under the mssmbios service, so it can be read with no WMI at
+# all. Needs administrator.
+#
+# Structure, per the DMTF SMBIOS specification: the cached blob starts
+# with an 8 byte Windows header, then a sequence of structures. Each has
+# type, length, handle, a formatted area, then its strings NUL
+# separated and terminated by a double NUL. Type 1 is System
+# Information, and its SerialNumber is the string INDEX at offset 0x07.
+#
+# Every step is bounds checked and the whole thing is wrapped, because
+# this is byte parsing of vendor-supplied data and some vendors ship
+# malformed tables. A missing serial is a small loss; an exception here
+# would take the first section of the report with it.
+function Get-SerialNoWmi {
+    try {
+        $raw = (Get-ItemProperty 'HKLM:\SYSTEM\CurrentControlSet\services\mssmbios\Data' `
+                -Name SMBiosData -ErrorAction SilentlyContinue).SMBiosData
+        if (-not $raw -or $raw.Length -lt 16) { return $null }
+
+        $i = 8                                    # skip the Windows header
+        while ($i + 4 -lt $raw.Length) {
+            $type = $raw[$i]
+            $len  = $raw[$i + 1]
+            if ($len -lt 4) { break }             # malformed, do not loop forever
+            $strStart = $i + $len
+            if ($strStart -ge $raw.Length) { break }
+
+            if ($type -eq 1) {
+                $idx = if ($i + 7 -lt $raw.Length) { $raw[$i + 7] } else { 0 }
+                if ($idx -lt 1) { return $null }
+                # Walk the NUL separated strings to the requested index.
+                $p = $strStart
+                for ($n = 1; $n -le $idx; $n++) {
+                    $end = $p
+                    while ($end -lt $raw.Length -and $raw[$end] -ne 0) { $end++ }
+                    if ($n -eq $idx) {
+                        $s = [System.Text.Encoding]::ASCII.GetString($raw, $p, $end - $p).Trim()
+                        if (-not $s -or $s -match '^(To be filled by O\.?E\.?M\.?|Default string|None|N/A|0+)$') { return $null }
+                        return $s
+                    }
+                    $p = $end + 1
+                    if ($p -ge $raw.Length) { return $null }
+                }
+                return $null
+            }
+
+            # Skip past this structure's string area: scan for the double
+            # NUL that terminates it.
+            $p = $strStart
+            while ($p + 1 -lt $raw.Length -and -not ($raw[$p] -eq 0 -and $raw[$p + 1] -eq 0)) { $p++ }
+            $i = $p + 2
+        }
+        return $null
+    } catch { return $null }
+}
+
+# =====================================================================
 #  THE CHOOSER: arrow keys, Enter to toggle
 # =====================================================================
 #  This lived in Repair-Health.ps1 and answered one question: which

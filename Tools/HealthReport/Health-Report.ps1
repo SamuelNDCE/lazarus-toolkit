@@ -221,9 +221,12 @@ if (-not $wmiAlive) {
         'Windows Management Instrumentation is the service this report',
         'reads almost everything from. It did not answer in 15 seconds.',
         '',
-        'The report will still run, and the checks that do not need WMI',
-        'still work, but make, model, serial, battery, disks, memory and',
-        'drivers will all be blank. That is this PC, not this tool.',
+        'The report will still run. Make, model, motherboard, BIOS, CPU',
+        'and serial come from the registry and are unaffected, as are the',
+        'installed programs, the update history and the reboot check.',
+        '',
+        'Battery, disks, memory, drivers, activation and restore points',
+        'are WMI only, so those are skipped. That is this PC, not this tool.',
         '',
         'To fix it, in order of how disruptive they are:',
         '  1. Restart the machine. This clears it most of the time.',
@@ -397,7 +400,18 @@ if (-not $Script:Unattended) {
 #  "prove to me it is really WMI" is a legitimate thing to want.
 # =====================================================================
 if (-not $wmiAlive -and -not $Only) {
-    $wmiOnly = @('M','A','B','D','R','V','T')
+    # 'M' is NOT in this list, deliberately.
+    #
+    # It was, and skipping it was the wrong trade: it turned a twenty
+    # second hang into losing the make, model, motherboard, BIOS version
+    # and BIOS date entirely, which is the most useful section in the
+    # report and the first thing anyone looks at. "I never read the
+    # BIOS" is a fair complaint about a repair tool.
+    #
+    # The Machine section reads all of that from the registry in about
+    # 100ms instead, on every machine, WMI or no WMI. See
+    # Get-BiosFactsNoWmi in Common.ps1.
+    $wmiOnly = @('A','B','D','R','V','T')
     $turnedOff = @()
     foreach ($s in $Script:Sections) {
         if ($s.Key -in $wmiOnly -and $s.On) { $s.On = $false; $turnedOff += $s.Name }
@@ -443,18 +457,38 @@ Sec 'Machine'
 #
 # Each call now has its own timeout and its own line, so a stall is
 # bounded, named, and does not take the rest of the report with it.
-$cs = Spin 'reading the system make and model' {
-    param($x)
-    Get-CimInstance Win32_ComputerSystem -ErrorAction SilentlyContinue
-} $null 20
-$bios = Spin 'reading the BIOS' {
-    param($x)
-    Get-CimInstance Win32_BIOS -ErrorAction SilentlyContinue
-} $null 20
-$os = Spin 'reading the Windows edition' {
-    param($x)
-    Get-CimInstance Win32_OperatingSystem -ErrorAction SilentlyContinue
-} $null 20
+#
+# REGISTRY FIRST, on every machine.
+#
+# Windows fills HKLM\HARDWARE\DESCRIPTION\System\BIOS from SMBIOS at
+# every boot, so make, model, board, BIOS vendor, BIOS version, BIOS
+# date, CPU and Windows edition are all sitting there and cost about
+# 100ms to read. The serial comes out of the cached SMBIOS table the
+# same way.
+#
+# So the four WMI calls below stopped being the source of this section
+# and became enrichment. On a healthy machine that takes four twenty
+# second timeouts off the critical path of the very first section,
+# which is where a slow start is most visible. On a machine with a
+# wedged WMI it is the difference between a full Machine section and
+# nothing at all.
+$reg = Get-BiosFactsNoWmi
+$regSerial = Get-SerialNoWmi
+
+$cs = $null; $bios = $null; $os = $null; $mb = $null
+if ($wmiAlive) {
+    $cs = Spin 'reading the system make and model' {
+        param($x)
+        Get-CimInstance Win32_ComputerSystem -ErrorAction SilentlyContinue
+    } $null 20
+    $bios = Spin 'reading the BIOS' {
+        param($x)
+        Get-CimInstance Win32_BIOS -ErrorAction SilentlyContinue
+    } $null 20
+    $os = Spin 'reading the Windows edition' {
+        param($x)
+        Get-CimInstance Win32_OperatingSystem -ErrorAction SilentlyContinue
+    } $null 20
 # The MOTHERBOARD, not the OEM system name.
 #
 # On a prebuilt laptop Win32_ComputerSystem gives something useful. On a
@@ -462,55 +496,117 @@ $os = Spin 'reading the Windows edition' {
 # closer to knowing what board is in the machine. Win32_BaseBoard is the
 # board itself, and board maker + board model + current BIOS version is
 # precisely the three things a vendor's BIOS download page asks for.
-$mb = Spin 'reading the motherboard' {
-    param($x)
-    Get-CimInstance Win32_BaseBoard -ErrorAction SilentlyContinue
-} $null 20
-Line 'Name'         $env:COMPUTERNAME
-if ($cs) { Line 'Make / model' "$($cs.Manufacturer) $($cs.Model)" }
-else     { Warn 'Could not read the system make and model. WMI did not answer in time.' }
-if ($mb) {
-    $rev = ''
-    if ($mb.Version -and $mb.Version.Trim() -and $mb.Version -notmatch 'To Be Filled|Default string') { $rev = "  rev $($mb.Version.Trim())" }
-    Line 'Motherboard' "$($mb.Manufacturer) $($mb.Product)$rev"
+    $mb = Spin 'reading the motherboard' {
+        param($x)
+        Get-CimInstance Win32_BaseBoard -ErrorAction SilentlyContinue
+    } $null 20
 }
-if ($bios) { Line 'Serial' $bios.SerialNumber }
+
+Line 'Name'         $env:COMPUTERNAME
+
+# WMI first when it answered, because Win32_ComputerSystem resolves a
+# few OEM names the registry leaves abbreviated. Registry otherwise,
+# which is almost always the same string.
+$makeModel = if ($cs) { "$($cs.Manufacturer) $($cs.Model)" }
+             elseif ($reg['SystemManufacturer'] -or $reg['SystemProductName']) {
+                 (("$($reg['SystemManufacturer']) $($reg['SystemProductName'])").Trim())
+             } else { '' }
+if ($makeModel) {
+    Line 'Make / model' $makeModel
+    if (-not $cs) { Info 'read from the registry, because WMI did not answer' }
+} else {
+    Warn 'Could not read the system make and model from WMI or the registry.'
+}
+if ($reg['Windows']) { Line 'Windows' $reg['Windows'] }
+# The MOTHERBOARD, not the OEM system name. On a prebuilt laptop the
+# system name is useful; on a custom-built desktop it is "To Be Filled
+# By O.E.M." and the board is the only real answer. Board maker + board
+# model + BIOS version is exactly what a vendor's download page asks
+# for, and all three are in the registry.
+$mbMake = if ($mb) { "$($mb.Manufacturer)".Trim() } else { $reg['BaseBoardManufacturer'] }
+$mbModel = if ($mb) { "$($mb.Product)".Trim() }    else { $reg['BaseBoardProduct'] }
+$mbRev  = if ($mb) { "$($mb.Version)".Trim() }     else { $reg['BaseBoardVersion'] }
+if ($mbMake -or $mbModel) {
+    $rev = ''
+    if ($mbRev -and $mbRev -notmatch 'To Be Filled|Default string') { $rev = "  rev $mbRev" }
+    Line 'Motherboard' ("$mbMake $mbModel$rev").Trim()
+}
+
+# Serial: WMI if it answered, otherwise parsed straight out of the
+# cached SMBIOS table, which needs administrator but no WMI at all.
+#
+# THE PLACEHOLDER IS FILTERED ON BOTH PATHS. Plenty of boards, and
+# nearly every custom-built desktop, ship "To be filled by O.E.M." or
+# "Default string" in this field. Win32_BIOS hands that straight back,
+# and printing it under a heading that says "Serial" states a fact that
+# is not one: it reads as the machine's identifier and it is the
+# vendor's unfilled template. Verified on this machine, where WMI
+# returns exactly that string.
+#
+# Saying "this board does not report one" is both true and more useful,
+# because it tells you to look at the sticker rather than to go hunting
+# for why the number looks wrong.
+$serialRaw = if ($bios -and $bios.SerialNumber) { "$($bios.SerialNumber)".Trim() } else { $null }
+if ($serialRaw -match '^(To be filled by O\.?E\.?M\.?|Default string|None|N/A|Not Applicable|System Serial Number|0+)$') { $serialRaw = $null }
+$serial = if ($serialRaw) { $serialRaw } else { $regSerial }
+
+if ($serial) {
+    Line 'Serial' $serial
+    if (-not $serialRaw) { Info 'read from the SMBIOS table' }
+} elseif (-not $Script:IsAdmin) {
+    Info 'Serial not read: it needs administrator.'
+} else {
+    Line 'Serial' 'not set by the manufacturer'
+    Info 'The board reports a placeholder rather than a number. Common on custom-built'
+    Info 'desktops. Use the sticker on the case or the motherboard itself.'
+}
 
 # BIOS AGE, not just version. A version string means nothing to anyone
 # who does not already know the vendor's numbering. Years since release
 # is the number that tells you whether to care.
+$biosVer  = if ($bios -and $bios.SMBIOSBIOSVersion) { "$($bios.SMBIOSBIOSVersion)".Trim() } else { $reg['BIOSVersion'] }
 $biosDate = $null
-try { if ($bios -and $bios.ReleaseDate) { $biosDate = [datetime]$bios.ReleaseDate } } catch { $biosDate = $null }
-if (-not $bios) {
-    Warn 'Could not read the BIOS. WMI did not answer in time, so the firmware version and age are unknown.'
+try {
+    if ($bios -and $bios.ReleaseDate) { $biosDate = [datetime]$bios.ReleaseDate }
+    elseif ($reg['BIOSReleaseDate'])  {
+        # The registry writes this US-style as MM/dd/yyyy regardless of
+        # locale, so it is parsed with an explicit format rather than
+        # with [datetime], which would read 03/09/2026 as 3 September on
+        # a UK machine and quietly report the wrong firmware age.
+        $biosDate = [datetime]::ParseExact($reg['BIOSReleaseDate'], 'MM/dd/yyyy', [Globalization.CultureInfo]::InvariantCulture)
+    }
+} catch { $biosDate = $null }
+
+if (-not $biosVer) {
+    Warn 'Could not read the BIOS version from WMI or the registry.'
 } elseif ($biosDate) {
     $biosAge = [math]::Round(((Get-Date) - $biosDate).TotalDays / 365.25, 1)
-    Line 'BIOS' "$($bios.SMBIOSBIOSVersion)  ($($biosDate.ToString('yyyy-MM-dd')), $biosAge years old)"
+    Line 'BIOS' "$biosVer  ($($biosDate.ToString('yyyy-MM-dd')), $biosAge years old)"
+    if (-not $bios) { Info 'read from the registry, because WMI did not answer' }
     if ($biosAge -ge 3) {
         Warn "The BIOS is $biosAge years old. Firmware updates carry CPU microcode fixes for security holes, and fixes for stability, memory compatibility and boot problems that no amount of work inside Windows can solve."
-        if ($mb) { Info "Search the vendor's support page for exactly: $($mb.Manufacturer) $($mb.Product)" }
-        Info "Current version is $($bios.SMBIOSBIOSVersion). Only ever take the file from the board maker's own site."
+        if ($mbMake) { Info "Search the vendor's support page for exactly: $mbMake $mbModel" }
+        Info "Current version is $biosVer. Only ever take the file from the board maker's own site."
         Info 'Read their instructions before flashing. A BIOS update interrupted by a power cut can leave the board unbootable.'
     }
 } else {
-    Line 'BIOS' "$($bios.SMBIOSBIOSVersion)  (release date not reported)"
+    Line 'BIOS' "$biosVer  (release date not reported)"
 }
-if ($os) {
-    Line 'Windows'      "$($os.Caption) build $($os.BuildNumber)"
-    if ($os.InstallDate) { Line 'Installed on' $os.InstallDate.ToString('yyyy-MM-dd') }
+if ($reg['BIOSVendor']) { Line 'BIOS vendor' $reg['BIOSVendor'] }
+
+if ($os -and $os.InstallDate) { Line 'Installed on' $os.InstallDate.ToString('yyyy-MM-dd') }
+
+# CPU comes from the registry too. Only the GPU genuinely needs WMI.
+if ($reg['Cpu']) { Line 'CPU' $reg['Cpu'] }
+if ($wmiAlive) {
+    $gpu = AsArray (Spin 'reading the graphics adapter' {
+        param($x)
+        Get-CimInstance Win32_VideoController -ErrorAction SilentlyContinue
+    } $null 20)
+    foreach ($g in $gpu) { if ($g.Name) { Line 'GPU' $g.Name } }
 } else {
-    Warn 'Could not read the Windows edition. WMI did not answer in time.'
+    Info 'Graphics adapter not read: it is the one thing here that needs WMI.'
 }
-$cpu = Spin 'reading the processor' {
-    param($x)
-    Get-CimInstance Win32_Processor -ErrorAction SilentlyContinue | Select-Object -First 1
-} $null 20
-if ($cpu) { Line 'CPU' $cpu.Name }
-$gpu = AsArray (Spin 'reading the graphics adapter' {
-    param($x)
-    Get-CimInstance Win32_VideoController -ErrorAction SilentlyContinue
-} $null 20)
-foreach ($g in $gpu) { if ($g.Name) { Line 'GPU' $g.Name } }
 
 }   # end of the 'machine' section
 # ------------------------------------------------------- activation
