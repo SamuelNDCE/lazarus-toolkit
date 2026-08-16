@@ -482,19 +482,29 @@ if ($NoUninstallEntry) {
 # an uninstaller has to guess, and guessing means either leaving litter
 # behind or deleting a folder somebody put their own files in.
 if (-not $WhatIfOnly) {
+    # The manifest LISTS ITSELF.
+    #
+    # It is written after everything else, so it was not in its own Files
+    # list, and the uninstaller then found a file it did not recognise
+    # sitting in the install folder. That check exists to protect
+    # anything the user put there, so it correctly refused to delete the
+    # folder, and an uninstall could therefore never fully finish: it
+    # removed 8 files and left installed.json, Uninstall.ps1 and the
+    # directory behind every time. Verified by running a real uninstall.
+    $manifestPath = Join-Path $Destination 'installed.json'
     $manifest = [pscustomobject]@{
         Product     = $ProductName
         Version     = $Version
         InstalledAt = (Get-Date -Format 'yyyy-MM-dd HH:mm:ss')
         Destination = $Destination
-        Files       = @($installed)
+        Files       = @($installed + $manifestPath)
         Shortcuts   = @($shortcuts)
         PathEntry   = $(if ($pathAdded) { $Destination } else { '' })
         UninstallKey= $uninstallKey
     }
     try {
         $manifest | ConvertTo-Json -Depth 4 |
-            Set-Content -Path (Join-Path $Destination 'installed.json') -Encoding UTF8 -ErrorAction Stop
+            Set-Content -Path $manifestPath -Encoding UTF8 -ErrorAction Stop
     } catch { Say-Warn "could not write installed.json: $($_.Exception.Message)" }
 }
 
