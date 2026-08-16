@@ -20,14 +20,14 @@ computer.
 
 **What it does, in one screen:**
 
-- **Tells you what the machine is** — make, model, serial, BIOS version *and its age*, CPU, GPU,
+- **Tells you what the machine is:** make, model, serial, BIOS version *and its age*, CPU, GPU,
   motherboard, Windows edition. Reads from the registry, so it works even when WMI is broken.
-- **Tells you what is wrong with it** — battery wear, SMART disk health, broken drivers *ranked
+- **Tells you what is wrong with it:** battery wear, SMART disk health, broken drivers *ranked
   CRITICAL to LOW*, activation channel, BitLocker, firewall, crashes, failed updates.
-- **Gives you a verdict** — ready to hand over, usable with notes, or not ready.
-- **Then offers to fix it** — 13 repairs using Windows' own tools, each with a time estimate,
+- **Gives you a verdict:** ready to hand over, usable with notes, or not ready.
+- **Then offers to fix it:** 13 repairs using Windows' own tools, each with a time estimate,
   each off by default, each offering a restore point first.
-- **Collects every log the job left behind** — 25 locations across Windows, your repairs and any
+- **Collects every log the job left behind:** 25 locations across Windows, your repairs and any
   antivirus tools that ran, into one dated folder.
 - **Never sends anything anywhere.** See below.
 
