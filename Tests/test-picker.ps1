@@ -131,6 +131,52 @@ Check 'a custom START label is used'  (@($rendered | Where-Object { $_ -match 'C
 Check 'a custom Cancel label is used' (@($rendered | Where-Object { $_ -match 'Quit without running' }).Count -eq 1)
 
 Write-Host ''
+Write-Host 'TICK ALL AND SKIP ALL' -ForegroundColor Cyan
+
+# With -ShowAllNone the rows are:
+#   0,1,2 items | 3 gap | 4 allon | 5 alloff | 6 gap2 | 7 START | 8 Cancel
+#
+# The spacer skip runs AFTER each keypress, so a press that lands on row
+# 3 immediately advances to row 4. THREE downs therefore reach "tick
+# all", not four. Counting rows rather than tracing the keypresses is
+# how the first version of this test was wrong by one on every case.
+$items = NewItems
+$r = Show-Picker -Items $items -ShowAllNone -TestKeys @(40, 40, 40, 13, 27)
+Check 'Tick all switches every item on' (@($items | Where-Object { -not $_.On }).Count -eq 0)
+Check 'and it does not itself proceed'  ($r -eq $false)
+
+$items = NewItems
+$r = Show-Picker -Items $items -ShowAllNone -TestKeys @(40, 40, 40, 40, 13, 27)
+Check 'Skip all switches every item off' (@($items | Where-Object { $_.On }).Count -eq 0)
+
+# One keypress to skip everything, then straight to START. This is the
+# whole point of the row: a look-only run without unticking each line.
+$items = NewItems
+$r = Show-Picker -Items $items -ShowAllNone -AllowEmpty -TestKeys @(40, 40, 40, 40, 13, 40, 13)
+Check 'Skip all then START runs with nothing ticked' (($r -eq $true) -and (@($items | Where-Object { $_.On }).Count -eq 0))
+
+# THE SECOND SPACER. There are two blank rows once the bulk rows exist,
+# and the skip logic was a single `if` written when there was one. That
+# would park the highlight on a blank row with Enter doing nothing,
+# which reads as the menu having frozen. Five downs must reach START.
+$items = NewItems
+$r = Show-Picker -Items $items -ShowAllNone -TestKeys @(40, 40, 40, 40, 40, 13)
+Check 'five downs reach START, skipping BOTH spacer rows' ($r -eq $true)
+
+# The rows say what they do, and the recommendation is on screen.
+$items = NewItems
+$null = Show-Picker -Items $items -ShowAllNone -TestKeys @(27)
+$rendered = @($Script:LastRender)
+Check 'a recommended tick-all row is drawn' (@($rendered | Where-Object { $_ -match 'ON.*recommended' }).Count -eq 1)
+Check 'a SKIP ALL row is drawn'             (@($rendered | Where-Object { $_ -match 'SKIP ALL' }).Count -eq 1)
+
+# Without the switch, neither row exists, so the repair menu is unchanged.
+$items = NewItems
+$null = Show-Picker -Items $items -TestKeys @(27)
+$rendered = @($Script:LastRender)
+Check 'without -ShowAllNone there is no SKIP ALL row' (@($rendered | Where-Object { $_ -match 'SKIP ALL' }).Count -eq 0)
+
+Write-Host ''
 Write-Host 'THE REPORT SECTIONS ARE WELL FORMED' -ForegroundColor Cyan
 
 # The health report builds its own list and maps names to keys. A key in

@@ -28,7 +28,7 @@ $Script:CanAnimate = -not [Console]::IsOutputRedirected
 #  Common.ps1 is dot-sourced by every script here, so this is the one
 #  definition. Bump it whenever the tool changes.
 # ---------------------------------------------------------------------
-$Script:ToolVersion = '1.1.0'
+$Script:ToolVersion = '1.2.0'
 
 
 # ---------------------------------------------------------------------
@@ -1023,6 +1023,9 @@ function Show-Picker {
         [string]$CancelLabel = 'Cancel, change nothing',
         [string]$Hint        = '',
         [switch]$ShowTime,
+        # Add "tick everything" and "skip everything" rows, and say in the
+        # header that leaving it all on is the recommendation.
+        [switch]$ShowAllNone,
         # Allow proceeding with nothing ticked. The repair menu must not:
         # "START" with no repairs selected is always a mistake. The report
         # menu must: everything unticked plus "save a file" unticked is a
@@ -1036,6 +1039,16 @@ function Show-Picker {
     $rows = @()
     foreach ($t in $Items) { $rows += [pscustomobject]@{ Kind = 'task'; Task = $t } }
     $rows += [pscustomobject]@{ Kind = 'gap';    Task = $null }
+    # Two bulk rows, so "I only want one of these" and "I want none of
+    # these" are one keypress each instead of eleven. Unticking every
+    # section by hand to get a look-only run is exactly the kind of
+    # tedium that makes somebody stop using the chooser and just press
+    # Enter, which defeats the point of having it.
+    if ($ShowAllNone) {
+        $rows += [pscustomobject]@{ Kind = 'allon';  Task = $null }
+        $rows += [pscustomobject]@{ Kind = 'alloff'; Task = $null }
+        $rows += [pscustomobject]@{ Kind = 'gap2';   Task = $null }
+    }
     $rows += [pscustomobject]@{ Kind = 'start';  Task = $null }
     $rows += [pscustomobject]@{ Kind = 'cancel'; Task = $null }
 
@@ -1134,8 +1147,16 @@ function Show-Picker {
             $cur  = if ($sel) { '  >>> ' } else { '      ' }
             $kind = $rows[$r].Kind
 
-            if ($kind -eq 'gap') {
+            if ($kind -eq 'gap' -or $kind -eq 'gap2') {
                 Emit (' ' * $width)
+            }
+            elseif ($kind -eq 'allon') {
+                $txt = "$cur" + 'Turn every option ON  (recommended)'
+                if ($sel) { Emit $txt.PadRight($width) 'White' } else { Emit $txt.PadRight($width) 'DarkCyan' }
+            }
+            elseif ($kind -eq 'alloff') {
+                $txt = "$cur" + 'SKIP ALL  (turn every option off)'
+                if ($sel) { Emit $txt.PadRight($width) 'White' } else { Emit $txt.PadRight($width) 'DarkCyan' }
             }
             elseif ($kind -eq 'start') {
                 $txt = "$cur" + $StartLabel
@@ -1186,9 +1207,18 @@ function Show-Picker {
                     $detail += ''
                 }
                 $detail += (Wrap $t.Desc ($width - 8))
+            } elseif ($rows[$i].Kind -eq 'allon') {
+                $detail += 'Switch every option back on.'
+                $detail += ''
+                $detail += (Wrap 'This is the recommended setting. Everything here is read only and the whole run takes well under two minutes, so the cost of leaving it all on is small and the cost of having skipped the one check that mattered is finding out later.' ($width - 8))
+            } elseif ($rows[$i].Kind -eq 'alloff') {
+                $detail += 'Switch every option off, including saving a report.'
+                $detail += ''
+                $detail += (Wrap 'Then tick just the one or two you actually want, rather than unticking nine. Useful for "only tell me what this machine is", or for looking at a PC and deliberately writing nothing to disk.' ($width - 8))
             } elseif ($rows[$i].Kind -eq 'start') {
                 $detail += $(if ($ShowTime) { 'Begin. Anything marked CHANGES offers a restore point first.' }
                              else           { 'Begin with the options ticked above.' })
+                if (-not $ShowTime) { $detail += ''; $detail += 'Leaving everything on is recommended.' }
             } elseif ($rows[$i].Kind -eq 'cancel') {
                 $detail += 'Close without touching this computer.'
             }
@@ -1262,15 +1292,23 @@ function Show-Picker {
             13 {                                                            # enter
                 switch ($rows[$i].Kind) {
                     'task'   { $rows[$i].Task.On = -not $rows[$i].Task.On }
+                    'allon'  { foreach ($t in $Items) { $t.On = $true } }
+                    'alloff' { foreach ($t in $Items) { $t.On = $false } }
                     'start'  { if ($anyOn -or $AllowEmpty) { return $true } }
                     'cancel' { return $false }
                 }
             }
             32 { if ($rows[$i].Kind -eq 'task') { $rows[$i].Task.On = -not $rows[$i].Task.On } }  # space
         }
-        # Skip the blank spacer row rather than letting the highlight land
+        # Skip the blank spacer rows rather than letting the highlight land
         # on nothing.
-        if ($rows[$i].Kind -eq 'gap') {
+        #
+        # BOTH spacer kinds, and in a loop. There are two of them once the
+        # bulk rows are shown, and the original single `if` on 'gap' alone
+        # would have parked the cursor on the second one with nothing
+        # highlighted and Enter doing nothing, which reads as the menu
+        # having frozen.
+        while ($rows[$i].Kind -eq 'gap' -or $rows[$i].Kind -eq 'gap2') {
             if ($code -eq 38) { $i-- } else { $i++ }
             if ($i -lt 0) { $i = $rows.Count - 1 }
             if ($i -ge $rows.Count) { $i = 0 }

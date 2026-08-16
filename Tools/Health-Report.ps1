@@ -392,8 +392,10 @@ if (-not $Script:Unattended) {
             # nothing", unlike the repair menu where an empty START is
             # always a mistake.
             if (-not (Show-Picker -Items $Script:Sections -Title 'HEALTH REPORT: WHAT TO INCLUDE' `
-                                  -StartLabel 'CONTINUE' -CancelLabel 'Quit without running' `
-                                  -Hint '    Move to CONTINUE and press ENTER to run.  Esc quits.' -AllowEmpty)) {
+                                  -StartLabel 'CONTINUE  (recommended: leave everything on)' `
+                                  -CancelLabel 'Quit without running' `
+                                  -Hint '    RECOMMENDED: leave everything ON and press ENTER on CONTINUE.' `
+                                  -AllowEmpty -ShowAllNone)) {
                 Write-Host ''
                 Write-Host '    Nothing was run.' -ForegroundColor DarkGray
                 Write-Host ''
