@@ -155,6 +155,7 @@ if (Get-Command git -ErrorAction SilentlyContinue) {
                 '[A-Z]:\\Users\\[A-Za-z0-9_.-]+'
                 '\bDESKTOP-[A-Z0-9]{7}\b|\bLAPTOP-[A-Z0-9]{7}\b'
                 'ghp_|gho_|github_pat_|xox[baprs]-|AKIA[0-9A-Z]{16}|discord\.com/api/webhooks'
+                '\bbrother\b|\bsister\b|\bmy mum\b|\bmy dad\b|\bmy wife\b|\bmy husband\b'
             )
             if (Test-Path $listPath) {
                 $n = @(Get-Content $listPath | ForEach-Object { $_.Trim() } |
@@ -182,6 +183,50 @@ if (Get-Command git -ErrorAction SilentlyContinue) {
                     $histHits++
                 }
             }
+            # THE BACKSTOP, REPLAYED AGAINST HISTORY.
+            #
+            # Everything above in this section is a fixed pattern list, so
+            # it only catches a name that is a machine path, a hostname, a
+            # credential shape, or already sitting in private-names.txt.
+            # That is not the incident this file exists to prevent: the
+            # client's name was never in any of those shapes, and it was
+            # caught by the working-tree backstop (rule 7 above) with no
+            # watchlist at all. This section had no equivalent, so a name
+            # scrubbed from the working tree and never added to
+            # private-names.txt would pass this scan clean while still
+            # sitting in every earlier commit.
+            #
+            # Case-sensitive, same as the working-tree version and for the
+            # same reason: without it, "caller's" and "chkdsk's" swamp the
+            # one capitalised name worth seeing.
+            $backstopPat = "\b[A-Z][a-z]{2,}'s\b"
+            $rawHits = @(& git grep -I -n -o -E -- $backstopPat $revs ':(exclude)Tests/check-privacy.ps1' 2>$null)
+            $histUnknown = @()
+            foreach ($line in $rawHits) {
+                # git grep -n -o prints "<rev>:<path>:<lineno>:<match>".
+                # The match itself never contains a colon, so the last
+                # field is always the word and the first is always the
+                # rev, even on the rare path that has a colon of its own.
+                $parts = $line -split ':'
+                if ($parts.Count -lt 4) { continue }
+                $rev  = $parts[0]
+                $word = ($parts[-1] -replace "'s$", '')
+                if ($word -notin $allow) {
+                    $histUnknown += [pscustomobject]@{ Rev = $rev; Word = $word }
+                }
+            }
+            if ($histUnknown.Count) {
+                $words   = @($histUnknown | ForEach-Object { $_.Word } | Sort-Object -Unique)
+                $commits = @($histUnknown | ForEach-Object { $_.Rev }  | Sort-Object -Unique)
+                Write-Host "  ISSUE  unrecognised capitalised possessive(s) survive in git history: $($words -join ', ')" -ForegroundColor Red
+                foreach ($c in ($commits | Select-Object -First 4)) {
+                    Write-Host ("           {0}" -f (& git log --format='%h %s' -1 $c)) -ForegroundColor DarkGray
+                }
+                Write-Host '           If any of those is a person, the history has to be rewritten and the remote purged.' -ForegroundColor DarkGray
+                Write-Host '           If it is a technical term, add it to $allow in this file.' -ForegroundColor DarkGray
+                $histHits++
+            }
+
             if (-not $histHits) {
                 Write-Host "  PASS  git history clean across $($revs.Count) commit(s)" -ForegroundColor Green
             }
