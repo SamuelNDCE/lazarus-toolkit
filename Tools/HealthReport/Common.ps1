@@ -1,4 +1,4 @@
-# =====================================================================
+﻿# =====================================================================
 #  SHARED BY Health-Report.ps1 AND Repair-Health.ps1
 #
 #  Dot-sourced by both. Do not run it on its own, it only defines things.
@@ -416,7 +416,7 @@ function Write-MarkdownReport {
     )
 
     $md = New-Object System.Text.StringBuilder
-    [void]$md.AppendLine("# Health and Handover Report: $env:COMPUTERNAME")
+    [void]$md.AppendLine("# Health Report and Repair: $env:COMPUTERNAME")
     [void]$md.AppendLine()
     [void]$md.AppendLine("**Generated:** $(Get-Date -Format 'yyyy-MM-dd HH:mm')  ")
     [void]$md.AppendLine("**Verdict:** $Verdict  ")
@@ -842,4 +842,312 @@ function Spin {
     Write-Host ("`r    done  {0}  ({1}s){2}" -f $Label, $took, (' ' * 10)) -ForegroundColor DarkGray
     if ($null -ne $Script:SpinLog) { [void]$Script:SpinLog.Add("  done  $Label  ($took" + 's)') }
     return $result
+}
+
+# =====================================================================
+#  THE CHOOSER: arrow keys, Enter to toggle
+# =====================================================================
+#  This lived in Repair-Health.ps1 and answered one question: which
+#  repairs to run. The health report now asks a question of exactly the
+#  same shape before it starts: which sections to include, and whether
+#  to save a file at all. Two pickers would have been two sets of the
+#  frame-painting bugs below, and the second copy would have had to
+#  re-learn every one of them.
+#
+#  So it takes a LIST rather than reaching for a global. Each item needs
+#  Name, On and Desc. Repairs additionally carry Changes, Time, Low and
+#  High, and -ShowTime turns those into the estimate line; the report
+#  sections have none of them and simply do not pass it.
+# =====================================================================
+function Wrap($text, $width = 64) {
+    $out = @(); $line = ''
+    foreach ($w in ($text -split '\s+')) {
+        if (($line + ' ' + $w).Trim().Length -gt $width) { $out += $line.Trim(); $line = $w }
+        else { $line = ($line + ' ' + $w) }
+    }
+    if ($line.Trim()) { $out += $line.Trim() }
+    $out
+}
+
+function Test-CanPick {
+    if ([Console]::IsInputRedirected) { return $false }
+    try {
+        $h = $Host.UI.RawUI
+        if ($null -eq $h -or $null -eq $h.WindowSize) { return $false }
+        # The picker scrolls its own viewport, so it only needs room for a
+        # usable window plus the detail pane. Below this the numbered menu
+        # is genuinely the better experience.
+        if ($h.WindowSize.Height -lt 24) { return $false }
+        return $true
+    } catch { return $false }
+}
+
+function Show-Picker {
+    # Returns $true to proceed with what is ticked, $false to cancel.
+    #
+    # -TestKeys feeds a scripted list of virtual key codes and skips all
+    # drawing. It exists because the picker cannot run under redirected
+    # input, so without it the navigation logic, which is where the real
+    # bugs live (index wrapping, skipping the spacer row, START with
+    # nothing ticked), would never be exercised by any test at all.
+    param(
+        [array]$Items,
+        [string]$Title       = 'CHOOSE',
+        [string]$StartLabel  = 'START',
+        [string]$CancelLabel = 'Cancel, change nothing',
+        [string]$Hint        = '',
+        [switch]$ShowTime,
+        # Allow proceeding with nothing ticked. The repair menu must not:
+        # "START" with no repairs selected is always a mistake. The report
+        # menu must: everything unticked plus "save a file" unticked is a
+        # legitimate choice meaning "show me the machine, save nothing".
+        [switch]$AllowEmpty,
+        [int[]]$TestKeys
+    )
+    $silent = [bool]$TestKeys
+    $kp = 0
+
+    $rows = @()
+    foreach ($t in $Items) { $rows += [pscustomobject]@{ Kind = 'task'; Task = $t } }
+    $rows += [pscustomobject]@{ Kind = 'gap';    Task = $null }
+    $rows += [pscustomobject]@{ Kind = 'start';  Task = $null }
+    $rows += [pscustomobject]@{ Kind = 'cancel'; Task = $null }
+
+    $i = 0
+    $width = if ($silent) { 78 } else { [Math]::Min(78, $Host.UI.RawUI.WindowSize.Width - 2) }
+
+    # THE HEADER IS PART OF EVERY FRAME.
+    #
+    # It used to print once, remember the cursor row underneath it, and
+    # reposition there on each keypress to repaint in place. That is the
+    # standard trick and it kept breaking: any scroll moves every absolute
+    # row, the remembered row silently points at the wrong line, and the
+    # redraw lands below the previous frame instead of on top of it, so
+    # each keypress leaves another full copy of the list on screen.
+    #
+    # Two changes fixed it. The anchor is the top of the VISIBLE window,
+    # re-read every frame, so nothing has to be remembered. And the frame
+    # is written in ONE call rather than one Write-Host per line, so it
+    # repaints as a single unit instead of visibly rebuilding itself down
+    # the screen.
+    #
+    # Every line is PADDED to the full width. That is what makes drawing
+    # over the previous frame safe without clearing first: a short line
+    # would otherwise leave the tail of whatever was there before.
+    $HeaderLines = 9
+    $hintText = if ($Hint) { $Hint } else { '    Move to ' + $StartLabel + ' and press ENTER to begin.  Esc quits.' }
+    $drawHeader = {
+        Paint (''.PadRight($width))
+        Paint ('   =========================================='.PadRight($width)) 'Cyan'
+        Paint ("    $Title".PadRight($width)) 'Cyan'
+        Paint ("    $env:COMPUTERNAME".PadRight($width)) 'DarkGray'
+        Paint ('   =========================================='.PadRight($width)) 'Cyan'
+        Paint (''.PadRight($width))
+        Paint ('    Up and Down to move.  ENTER switches an option on or off.'.PadRight($width)) 'DarkGray'
+        Paint ($hintText.PadRight($width)) 'DarkGray'
+        Paint (''.PadRight($width))
+    }
+
+    # Clear ONCE, here, so the first frame starts on a clean screen and
+    # there is nothing left below it. Never again inside the loop: that
+    # clear is what made the list flash and appear to jump on every
+    # keypress, because for one frame the screen was genuinely empty.
+    if (-not $silent) { Clear-Host }
+
+    while ($true) {
+      $Script:LastRender = New-Object System.Collections.ArrayList
+      $paint = -not $silent
+      $frame = New-Object System.Collections.ArrayList
+
+      # Paint: a line that is only ever drawn (header, markers, detail).
+      function Paint($text, $colour = 'Gray') {
+          if ($paint) { [void]$frame.Add([pscustomobject]@{ T = $text; C = $colour }) }
+      }
+      # Emit: an option row. Also recorded in LastRender, which is how the
+      # silent test mode inspects the row layout without a console.
+      function Emit($text, $colour = 'Gray') {
+          [void]$Script:LastRender.Add($text)
+          if ($paint) { [void]$frame.Add([pscustomobject]@{ T = $text; C = $colour }) }
+      }
+
+      if ($paint) { & $drawHeader }
+
+        # VIEWPORT.
+        #
+        # Two rules make a stacked-duplicates redraw impossible rather
+        # than unlikely:
+        #   1. Show a WINDOW of rows, never all of them, sized from the
+        #      real window height.
+        #   2. Draw EXACTLY the same number of lines every frame, padding
+        #      with blanks, so the frame height is constant and nothing
+        #      can ever scroll.
+        $vFirst = 0
+        $vCount = $rows.Count
+        if ($paint) {
+            $detailLines = 10                      # blank, rule, 6 detail, rule, summary
+            $chrome      = 2                       # the "more above/below" markers
+            $avail = $Host.UI.RawUI.WindowSize.Height - $HeaderLines - $detailLines - $chrome - 2
+            $vCount = [Math]::Max(5, [Math]::Min($rows.Count, $avail))
+            if ($vCount -lt $rows.Count) {
+                $vFirst = $i - [int]($vCount / 2)
+                if ($vFirst -lt 0) { $vFirst = 0 }
+                if ($vFirst + $vCount -gt $rows.Count) { $vFirst = $rows.Count - $vCount }
+            }
+        }
+        $vEnd = $vFirst + $vCount - 1
+
+        if ($vFirst -gt 0) { Paint ("      ^ $vFirst more above".PadRight($width)) 'DarkCyan' }
+        else               { Paint (' ' * $width) }
+
+        # if/elseif, NOT switch. In PowerShell a switch IS a loop, so a
+        # `continue` in a case exits the switch and carries straight on
+        # into the code below it. That made every START, Cancel and
+        # spacer row draw a second, empty "[ ]" line underneath itself.
+        for ($r = $vFirst; $r -le $vEnd -and $r -lt $rows.Count; $r++) {
+            $sel  = ($r -eq $i)
+            $cur  = if ($sel) { '  >>> ' } else { '      ' }
+            $kind = $rows[$r].Kind
+
+            if ($kind -eq 'gap') {
+                Emit (' ' * $width)
+            }
+            elseif ($kind -eq 'start') {
+                $txt = "$cur" + $StartLabel
+                if ($sel) { Emit $txt.PadRight($width) 'Green' }
+                else      { Emit $txt.PadRight($width) 'DarkGreen' }
+            }
+            elseif ($kind -eq 'cancel') {
+                $txt = "$cur" + $CancelLabel
+                if ($sel) { Emit $txt.PadRight($width) 'White' }
+                else      { Emit $txt.PadRight($width) 'DarkGray' }
+            }
+            else {
+                $t    = $rows[$r].Task
+                $box  = if ($t.On) { "[$Script:Tick]" } else { '[ ]' }
+                $tag  = if ($t.Changes) { '  CHANGES' } else { '' }
+                $txt  = "$cur$box $($t.Name)$tag"
+                if ($txt.Length -gt $width) { $txt = $txt.Substring(0, $width) }
+                # The row you are on is bright white. On or off is carried
+                # by the tick and by green versus grey, so the highlight
+                # only ever answers "where am I", never "is this on".
+                if     ($sel)       { Emit $txt.PadRight($width) 'White' }
+                elseif ($t.On)      { Emit $txt.PadRight($width) 'Green' }
+                elseif ($t.Changes) { Emit $txt.PadRight($width) 'DarkYellow' }
+                else                { Emit $txt.PadRight($width) 'DarkGray' }
+            }
+        }
+
+        if ($paint) {
+            # Pad to a fixed number of row lines. Without this the frame
+            # shrinks near the ends of the list, leaving the tail of the
+            # previous, longer frame on screen underneath.
+            $drawn = [Math]::Min($vEnd, $rows.Count - 1) - $vFirst + 1
+            for ($pad = $drawn; $pad -lt $vCount; $pad++) { Paint (' ' * $width) }
+
+            $below = $rows.Count - 1 - $vEnd
+            if ($below -gt 0) { Paint ("      v $below more below".PadRight($width)) 'DarkCyan' }
+            else              { Paint (' ' * $width) }
+        }
+
+        if ($paint) {
+            Paint (' ' * $width)
+            Paint (('    ' + ('-' * ($width - 6))).PadRight($width)) 'DarkGray'
+            $detail = @()
+            if ($rows[$i].Kind -eq 'task') {
+                $t = $rows[$i].Task
+                if ($ShowTime) {
+                    $detail += "takes $($t.Time)" + $(if ($t.Changes) { '   CHANGES THIS PC' } else { '   read only' })
+                    $detail += ''
+                }
+                $detail += (Wrap $t.Desc ($width - 8))
+            } elseif ($rows[$i].Kind -eq 'start') {
+                $detail += $(if ($ShowTime) { 'Begin. Anything marked CHANGES offers a restore point first.' }
+                             else           { 'Begin with the options ticked above.' })
+            } elseif ($rows[$i].Kind -eq 'cancel') {
+                $detail += 'Close without touching this computer.'
+            }
+            for ($d = 0; $d -lt 6; $d++) {
+                $line = if ($d -lt $detail.Count) { '      ' + $detail[$d] } else { '' }
+                if ($line.Length -gt $width) { $line = $line.Substring(0, $width) }
+                Paint $line.PadRight($width) $(if ($d -eq 0) { 'White' } else { 'DarkGray' })
+            }
+            Paint (('    ' + ('-' * ($width - 6))).PadRight($width)) 'DarkGray'
+
+            $selNow = @($Items | Where-Object On)
+            if ($ShowTime) {
+                $lo = ($selNow | Measure-Object Low  -Sum).Sum
+                $hi = ($selNow | Measure-Object High -Sum).Sum
+                $est = if (-not $selNow.Count) { 'nothing selected' }
+                       elseif ($hi -le 1)      { 'under a minute' }
+                       elseif ($lo -eq 0)      { "up to about $hi minutes" }
+                       else                    { "roughly $lo to $hi minutes" }
+                $ch = @($selNow | Where-Object Changes).Count
+                $sum = "    $($selNow.Count) selected, $est." + $(if ($ch) { "  $ch change this computer." } else { '' })
+                Paint $sum.PadRight($width) $(if ($ch) { 'Yellow' } else { 'White' })
+            } else {
+                $sum = "    $($selNow.Count) of $($Items.Count) included."
+                Paint $sum.PadRight($width) 'White'
+            }
+        }
+
+      # ---- ONE PAINT --------------------------------------------------
+      # The whole frame goes out in a single write. Per-line Write-Host is
+      # flushed and rendered per line, so on every keypress the menu
+      # visibly rebuilt itself from the top down. That IS the glitch, and
+      # no amount of cursor arithmetic fixes it, because the painting
+      # itself is what you are watching.
+      #
+      # NO trailing newline after the final line. Writing one while on the
+      # bottom row scrolls the viewport.
+      if ($paint) {
+        try {
+            $wp = $Host.UI.RawUI.WindowPosition
+            $Host.UI.RawUI.CursorPosition =
+                New-Object System.Management.Automation.Host.Coordinates 0, $wp.Y
+        } catch { }
+
+        if ($Script:VtEnabled) {
+            $sb = New-Object System.Text.StringBuilder
+            [void]$sb.Append("$([char]27)[?25l")          # hide the cursor
+            for ($n = 0; $n -lt $frame.Count; $n++) {
+                [void]$sb.Append((Get-AnsiLine $frame[$n].T $frame[$n].C))
+                if ($n -lt $frame.Count - 1) { [void]$sb.Append("`n") }
+            }
+            [void]$sb.Append("$([char]27)[?25h")          # and put it back
+            [Console]::Write($sb.ToString())
+        } else {
+            # No ANSI available. Per-line drawing, which flickers, but a
+            # menu that flickers beats a menu that will not draw at all.
+            foreach ($ln in $frame) { Write-Host $ln.T -ForegroundColor $ln.C }
+        }
+      }
+
+      $anyOn = @($Items | Where-Object On).Count
+      if ($silent) {
+          if ($kp -ge $TestKeys.Count) { return $false }
+          $code = $TestKeys[$kp]; $kp++
+      } else {
+          $code = ($Host.UI.RawUI.ReadKey('NoEcho,IncludeKeyDown')).VirtualKeyCode
+      }
+        switch ($code) {
+            38 { $i--; if ($i -lt 0) { $i = $rows.Count - 1 } }             # up
+            40 { $i++; if ($i -ge $rows.Count) { $i = 0 } }                 # down
+            27 { return $false }                                            # esc
+            13 {                                                            # enter
+                switch ($rows[$i].Kind) {
+                    'task'   { $rows[$i].Task.On = -not $rows[$i].Task.On }
+                    'start'  { if ($anyOn -or $AllowEmpty) { return $true } }
+                    'cancel' { return $false }
+                }
+            }
+            32 { if ($rows[$i].Kind -eq 'task') { $rows[$i].Task.On = -not $rows[$i].Task.On } }  # space
+        }
+        # Skip the blank spacer row rather than letting the highlight land
+        # on nothing.
+        if ($rows[$i].Kind -eq 'gap') {
+            if ($code -eq 38) { $i-- } else { $i++ }
+            if ($i -lt 0) { $i = $rows.Count - 1 }
+            if ($i -ge $rows.Count) { $i = 0 }
+        }
+    }
 }

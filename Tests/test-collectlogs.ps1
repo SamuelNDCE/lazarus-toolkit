@@ -23,7 +23,7 @@ param(
     # a behaviour test that has never failed has not been shown to work.
     [string]$Tool
 )
-if (-not $Tool) { $Tool = Join-Path (Split-Path $PSScriptRoot -Parent) 'HealthReport\Collect-ToolLogs.ps1' }
+if (-not $Tool) { $Tool = Join-Path (Split-Path $PSScriptRoot -Parent) 'Tools\HealthReport\Collect-ToolLogs.ps1' }
 $tool = $Tool
 $fail = 0
 function Check($what, $ok, $detail) {

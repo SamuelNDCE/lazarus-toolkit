@@ -29,7 +29,7 @@ param([string]$Root)
       original leak with no list at all, because "<Name>'s laptop"
       matches it and "chkdsk's" does not.
 #>
-if (-not $Root) { $Root = Join-Path (Split-Path $PSScriptRoot -Parent) 'HealthReport' }
+if (-not $Root) { $Root = Join-Path (Split-Path $PSScriptRoot -Parent) 'Tools\HealthReport' }
 $repo = Split-Path $PSScriptRoot -Parent
 
 # This file names patterns for a living, so scanning it finds only itself.
@@ -99,7 +99,12 @@ $allow = @(
     # for review and read by a human first, which is the point: the list
     # grows deliberately, and a name that is genuinely a person never
     # reaches it.
-    'Firefox','Malwarebytes','Rufus','BleachBit','TrustedInstaller','NuGet','Chrome'
+    'Firefox','Malwarebytes','Rufus','BleachBit','TrustedInstaller','NuGet','Chrome',
+    # Panther is the Windows setup log folder, %WINDIR%\Panther, which
+    # Collect-ToolLogs now sweeps. Surfaced by the backstop the moment it
+    # was written into the README, which is the check working: a
+    # capitalised possessive is a person until a human says otherwise.
+    'Panther'
 )
 # -CaseSensitive is load bearing. Select-String ignores case by default,
 # so [A-Z] happily matched "caller's" and "chkdsk's" and buried the one

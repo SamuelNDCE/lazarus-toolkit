@@ -1,4 +1,4 @@
-﻿# Exercises the ACTUAL watchdog functions out of Repair-Health.ps1.
+# Exercises the ACTUAL watchdog functions out of Repair-Health.ps1.
 #
 # The call sites live inside the SFC/DISM repair, which cannot be run
 # casually. Everything so far has tested a COPY of the watchdog body,
@@ -6,7 +6,7 @@
 # real definitions out of the real file by AST and calls them, so a
 # rename, a signature change or a bad return value cannot hide.
 param([string]$Root)
-if (-not $Root) { $Root = Join-Path (Split-Path $PSScriptRoot -Parent) 'HealthReport' }
+if (-not $Root) { $Root = Join-Path (Split-Path $PSScriptRoot -Parent) 'Tools\HealthReport' }
 $file = Join-Path $Root 'Repair-Health.ps1'
 $ast  = [System.Management.Automation.Language.Parser]::ParseFile($file, [ref]$null, [ref]$null)
 

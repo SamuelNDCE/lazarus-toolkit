@@ -35,7 +35,7 @@ param(
 
 $ErrorActionPreference = 'Stop'
 $repo = Split-Path $PSScriptRoot -Parent
-if (-not $Root) { $Root = Join-Path $repo 'HealthReport' }
+if (-not $Root) { $Root = Join-Path $repo 'Tools\HealthReport' }
 
 $fail = 0
 function Check($name, $ok, $detail = '') {
@@ -46,7 +46,12 @@ function Section($t) { Write-Host ''; Write-Host $t -ForegroundColor Cyan }
 
 # Clear-Reports.ps1 is included: it deletes files, so it is the last
 # script in here that should go unchecked.
-$scripts = @('Common.ps1','Health-Report.ps1','Repair-Health.ps1','Clear-Reports.ps1','Collect-ToolLogs.ps1') |
+# Install.ps1 and Uninstall.ps1 are in here for the same reason
+# Clear-Reports.ps1 is: they write outside the toolkit folder, touch the
+# user's PATH and the registry, and one of them deletes. Those are the
+# last scripts in the project that should go unchecked.
+$scripts = @('Common.ps1','Health-Report.ps1','Repair-Health.ps1','Clear-Reports.ps1',
+             'Collect-ToolLogs.ps1','Install.ps1','Uninstall.ps1') |
            ForEach-Object { Join-Path $Root $_ } |
            Where-Object { Test-Path $_ }
 
@@ -249,6 +254,20 @@ if (Test-Path $retryTest) {
           'run Tests\test-retry.ps1 for the detail'
 } else {
     Check 'retry test present' $false 'Tests\test-retry.ps1 is missing'
+}
+
+Section 'THE PICKER BOTH TOOLS SHARE'
+# Show-Picker moved into Common.ps1 so the health report can ask "which
+# sections?" with the same interface Repair-Health uses for "which
+# repairs?". One piece of fiddly code now has two callers, so its
+# navigation is driven with scripted keystrokes rather than trusted.
+$pickTest = Join-Path $PSScriptRoot 'test-picker.ps1'
+if (Test-Path $pickTest) {
+    & $pickTest -Root $Root *>$null
+    Check 'the picker navigates, toggles, cancels and refuses an empty START' ($LASTEXITCODE -eq 0) `
+          'run Tests\test-picker.ps1 for the detail'
+} else {
+    Check 'picker test present' $false 'Tests\test-picker.ps1 is missing'
 }
 
 Section 'COLLECTING OTHER TOOLS'' LOGS'

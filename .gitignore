@@ -26,7 +26,12 @@ repairlog-*.txt
 # downloaded from its own official source instead, so every publisher
 # keeps control of their own distribution.
 # ---------------------------------------------------------------------
-Tools/
+# Tools/* not Tools/, and the negation below is why. Git cannot re-include
+# a file if a PARENT DIRECTORY of it is excluded, so a bare `Tools/` would
+# make `!Tools/HealthReport/` do nothing at all and silently untrack the
+# main tool the moment it moved in here.
+Tools/*
+!Tools/HealthReport/
 ISO/
 Setup/
 *.iso

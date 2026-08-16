@@ -1,8 +1,8 @@
-﻿# Proves the report still lands somewhere when the tool folder is not
+# Proves the report still lands somewhere when the tool folder is not
 # writable. Lifts the real Get-ReportPath out of Health-Report.ps1 by AST
 # so this tests the shipped function, not a copy of it.
 param([string]$Root)
-if (-not $Root) { $Root = Join-Path (Split-Path $PSScriptRoot -Parent) 'HealthReport' }
+if (-not $Root) { $Root = Join-Path (Split-Path $PSScriptRoot -Parent) 'Tools\HealthReport' }
 # Common.ps1, not Health-Report.ps1. Get-ReportPath moved there so
 # Collect-ToolLogs could use it too, and this test kept reading the old
 # location and failing.

@@ -1,11 +1,11 @@
-﻿# Proves Show-Box aligns and Start-ProgressTicker animates.
+# Proves Show-Box aligns and Start-ProgressTicker animates.
 #
 # Calls the REAL Show-Box and captures it via the information stream
 # (6>&1), which is where Write-Host goes on PowerShell 5+. The first
 # version of this test re-implemented Show-Box's arithmetic and compared
 # that against itself, which would have passed happily while the shipped
 # function stayed wrong. A test must exercise the thing, not a copy.
-. (Join-Path (Split-Path $PSScriptRoot -Parent) 'HealthReport\Common.ps1')
+. (Join-Path (Split-Path $PSScriptRoot -Parent) 'Tools\HealthReport\Common.ps1')
 
 $cases = @(
     ,@('DOWNLOADING AND INSTALLING DRIVERS. DO NOT CLOSE THIS.',

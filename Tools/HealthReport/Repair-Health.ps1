@@ -1,4 +1,4 @@
-<#
+﻿<#
 =======================================================================
  DEEPER HEALTH CHECK AND REPAIR
 
@@ -367,357 +367,10 @@ $Tasks = @(
 # reordering the menu cannot silently run the wrong section.
 function On($k) { [bool](($Tasks | Where-Object { $_.Key -eq $k }).On) }
 
-# =====================================================================
-#  THE PICKER: arrow keys, Enter to toggle
-# =====================================================================
-#  Twelve options is well past the point where "type the number" works.
-#  Up and Down move a highlight, Enter switches the highlighted one on
-#  or off, and START and Cancel are rows at the bottom you move to and
-#  press Enter on.
-#
-#  It falls back to the numbered menu when it cannot work:
-#    - input is redirected (a piped test, a scheduled run)
-#    - the host has no RawUI ReadKey (PowerShell ISE throws on NoEcho)
-#    - the window is too short to draw the list without scrolling
-# =====================================================================
-function Wrap($text, $width = 64) {
-    $out = @(); $line = ''
-    foreach ($w in ($text -split '\s+')) {
-        if (($line + ' ' + $w).Trim().Length -gt $width) { $out += $line.Trim(); $line = $w }
-        else { $line = ($line + ' ' + $w) }
-    }
-    if ($line.Trim()) { $out += $line.Trim() }
-    $out
-}
-
-function Test-CanPick {
-    if ([Console]::IsInputRedirected) { return $false }
-    try {
-        $h = $Host.UI.RawUI
-        if ($null -eq $h -or $null -eq $h.WindowSize) { return $false }
-        # Was 30, chosen when the list was short enough to always fit.
-        # The picker now scrolls its own viewport, so it only needs room
-        # for a usable window plus the detail pane. Below this the
-        # numbered menu is genuinely the better experience.
-        if ($h.WindowSize.Height -lt 24) { return $false }
-        return $true
-    } catch { return $false }
-}
-
-function Show-Picker {
-    # Returns $true to run what is ticked, $false to cancel.
-    #
-    # -TestKeys feeds a scripted list of virtual key codes and skips all
-    # drawing. It exists because the picker cannot run under redirected
-    # input, so without it the navigation logic, which is where the real
-    # bugs live (index wrapping, skipping the spacer row, START with
-    # nothing ticked), would never be exercised by any test at all.
-    param([int[]]$TestKeys)
-    $silent = [bool]$TestKeys
-    $kp = 0
-
-    $rows = @()
-    foreach ($t in $Tasks) { $rows += [pscustomobject]@{ Kind = 'task'; Task = $t } }
-    $rows += [pscustomobject]@{ Kind = 'gap';    Task = $null }
-    $rows += [pscustomobject]@{ Kind = 'start';  Task = $null }
-    $rows += [pscustomobject]@{ Kind = 'cancel'; Task = $null }
-
-    $i = 0
-    $width = if ($silent) { 78 } else { [Math]::Min(78, $Host.UI.RawUI.WindowSize.Width - 2) }
-
-    # THE HEADER IS NOW PART OF EVERY FRAME.
-    #
-    # This used to print once, remember the cursor row underneath it as
-    # $top, and reposition there on each keypress to repaint in place.
-    # That is the standard trick and it kept breaking: any scroll moves
-    # every absolute row, $top silently points at the wrong line, and the
-    # redraw lands below the previous frame instead of on top of it, so
-    # each keypress leaves another full copy of the list on screen.
-    #
-    # It was patched three times: a viewport so the frame was smaller, a
-    # spare row so a frame that exactly filled the window would not scroll
-    # itself, and re-deriving $top from the cursor to absorb a scroll of
-    # any size. Duplicates survived all three, because I was testing in the
-    # classic host while the failures were in Windows Terminal, where the
-    # scrollback buffer is 9001 rows rather than 30 and every absolute-row
-    # assumption behaves differently.
-    #
-    # Two changes actually fixed it. The anchor is now the top of the
-    # VISIBLE window, re-read every frame, so nothing has to be remembered.
-    # And the frame is written in ONE call rather than one Write-Host per
-    # line, so it repaints as a single unit instead of visibly rebuilding
-    # itself down the screen. See the paint block at the end of the loop.
-    #
-    # Every line is PADDED to the full width. That is what makes drawing
-    # over the previous frame safe without clearing first: a short line
-    # would otherwise leave the tail of whatever was there before.
-    $HeaderLines = 9
-    $drawHeader = {
-        Paint (''.PadRight($width))
-        Paint ('   =========================================='.PadRight($width)) 'Cyan'
-        Paint ('    REPAIR AND RECOVERY'.PadRight($width)) 'Cyan'
-        Paint ("    $env:COMPUTERNAME".PadRight($width)) 'DarkGray'
-        Paint ('   =========================================='.PadRight($width)) 'Cyan'
-        Paint (''.PadRight($width))
-        Paint ('    Up and Down to move.  ENTER switches an option on or off.'.PadRight($width)) 'DarkGray'
-        Paint ('    Move to START and press ENTER to begin.  Esc quits.'.PadRight($width)) 'DarkGray'
-        Paint (''.PadRight($width))
-    }
-
-    # Clear ONCE, here, so the first frame starts on a clean screen and
-    # there is nothing left below it. Never again inside the loop: that
-    # clear is what made the list flash and appear to jump on every
-    # keypress, because for one frame the screen was genuinely empty.
-    if (-not $silent) { Clear-Host }
-
-    while ($true) {
-      # Draw into a buffer, then either paint it or hand it back. Doing
-      # it this way is what makes the row layout testable at all: the
-      # fall-through bug that drew a phantom "[ ]" under every START and
-      # Cancel row was invisible to every test until the rows could be
-      # inspected as text.
-      $Script:LastRender = New-Object System.Collections.ArrayList
-      $paint = -not $silent
-
-      # The frame is BUILT here and PAINTED once at the bottom. Nothing
-      # in this loop writes to the console directly any more.
-      $frame = New-Object System.Collections.ArrayList
-
-      # Paint: a line that is only ever drawn (header, markers, detail).
-      function Paint($text, $colour = 'Gray') {
-          if ($paint) { [void]$frame.Add([pscustomobject]@{ T = $text; C = $colour }) }
-      }
-      # Emit: an option row. Also recorded in LastRender, which is how the
-      # silent test mode inspects the row layout without a console.
-      function Emit($text, $colour = 'Gray') {
-          [void]$Script:LastRender.Add($text)
-          if ($paint) { [void]$frame.Add([pscustomobject]@{ T = $text; C = $colour }) }
-      }
-
-      # Header first into the frame buffer. Nothing reaches the console
-      # until the single paint at the bottom of this loop.
-      if ($paint) { & $drawHeader }
-      if ($true) {
-
-        # if/elseif, NOT switch.
-        #
-        # This loop used a switch whose gap, start and cancel cases each
-        # ended in `continue`. In PowerShell a switch IS a loop, so
-        # `continue` there exits the switch and carries straight on into
-        # the task-drawing code below it. Every START, Cancel and spacer
-        # row therefore drew a second, empty "[ ]" line underneath itself,
-        # highlighted, which is why two rows looked selected at once.
-        #
-        # This project already had that written down as a rule from the
-        # activity collector, and it got made again here. A switch is the
-        # wrong shape for "draw one row and move on" full stop.
-        # VIEWPORT.
-        #
-        # The redraw is anchored to $top, an absolute buffer row captured
-        # once. That only works while the frame fits on screen. The moment
-        # the drawing runs past the bottom, the console scrolls, every
-        # absolute row shifts up, $top points at the wrong line, and the
-        # next keypress paints a whole fresh copy below the last one.
-        # The result was a screen full of stacked duplicate lists.
-        #
-        # It appeared the moment the list grew: three options were added
-        # (force DISM, driver install, self-test) and 12 rows became 15,
-        # which pushed the frame past the window. The anchor was always
-        # this fragile, the new rows just spent the slack.
-        #
-        # Two rules make it impossible rather than unlikely:
-        #   1. Show a WINDOW of rows, never all of them, sized from the
-        #      real window height.
-        #   2. Draw EXACTLY the same number of lines every frame, padding
-        #      with blanks, so the frame height is constant and nothing
-        #      can ever scroll. Constant height is what keeps $top valid.
-        # It now survives any number of tasks and any window size.
-        $vFirst = 0
-        $vCount = $rows.Count
-        if ($paint) {
-            $detailLines = 10                      # blank, rule, 6 detail, rule, summary
-            $chrome      = 2                       # the "more above/below" markers
-            # Sized against the header height, which is now a known
-            # constant because the header is redrawn with the frame,
-            # rather than against a remembered cursor row. Two spare rows:
-            # the last line of the frame writes a newline of its own, so a
-            # frame that exactly fills the window still scrolls it by one.
-            $avail = $Host.UI.RawUI.WindowSize.Height - $HeaderLines - $detailLines - $chrome - 2
-            $vCount = [Math]::Max(5, [Math]::Min($rows.Count, $avail))
-            # Keep the highlighted row inside the window, with the
-            # selection roughly centred rather than pinned to an edge.
-            if ($vCount -lt $rows.Count) {
-                $vFirst = $i - [int]($vCount / 2)
-                if ($vFirst -lt 0) { $vFirst = 0 }
-                if ($vFirst + $vCount -gt $rows.Count) { $vFirst = $rows.Count - $vCount }
-            }
-        }
-        $vEnd = $vFirst + $vCount - 1
-
-        if ($vFirst -gt 0) { Paint ("      ^ $vFirst more above".PadRight($width)) 'DarkCyan' }
-        else               { Paint (' ' * $width) }
-
-        for ($r = $vFirst; $r -le $vEnd -and $r -lt $rows.Count; $r++) {
-            $sel  = ($r -eq $i)
-            # An arrow rather than a block of colour across the whole row.
-            # Three characters so it is unmissable at a glance without
-            # painting over everything else on the line.
-            $cur  = if ($sel) { '  >>> ' } else { '      ' }
-            $kind = $rows[$r].Kind
-
-            if ($kind -eq 'gap') {
-                Emit (' ' * $width)
-            }
-            elseif ($kind -eq 'start') {
-                $txt = "$cur" + 'START'
-                if ($sel) { Emit $txt.PadRight($width) 'Green' }
-                else      { Emit $txt.PadRight($width) 'DarkGreen' }
-            }
-            elseif ($kind -eq 'cancel') {
-                $txt = "$cur" + 'Cancel, change nothing'
-                if ($sel) { Emit $txt.PadRight($width) 'White' }
-                else      { Emit $txt.PadRight($width) 'DarkGray' }
-            }
-            else {
-                $t    = $rows[$r].Task
-                $box  = if ($t.On) { "[$Script:Tick]" } else { '[ ]' }
-                $tag  = if ($t.Changes) { '  CHANGES' } else { '' }
-                $txt  = "$cur$box $($t.Name)$tag"
-                if ($txt.Length -gt $width) { $txt = $txt.Substring(0, $width) }
-                # The row you are on is bright white. On or off is still
-                # carried by the tick and by green versus grey, so the
-                # highlight only ever answers "where am I", never "is
-                # this on", and the two can no longer be confused.
-                if     ($sel)       { Emit $txt.PadRight($width) 'White' }
-                elseif ($t.On)      { Emit $txt.PadRight($width) 'Green' }
-                elseif ($t.Changes) { Emit $txt.PadRight($width) 'DarkYellow' }
-                else                { Emit $txt.PadRight($width) 'DarkGray' }
-            }
-        }
-
-        if ($paint) {
-            # Pad to a fixed number of row lines. Without this the frame
-            # shrinks near the ends of the list, leaving the tail of the
-            # previous, longer frame on screen underneath.
-            $drawn = [Math]::Min($vEnd, $rows.Count - 1) - $vFirst + 1
-            for ($pad = $drawn; $pad -lt $vCount; $pad++) { Paint (' ' * $width) }
-
-            $below = $rows.Count - 1 - $vEnd
-            if ($below -gt 0) { Paint ("      v $below more below".PadRight($width)) 'DarkCyan' }
-            else              { Paint (' ' * $width) }
-        }
-
-        # Detail pane for whatever is highlighted. The option rows above
-        # go through Emit so a test can inspect the layout; these panes
-        # are painted straight to the console, so they are guarded to
-        # keep the silent test mode genuinely silent.
-        if ($paint) {
-        Paint (' ' * $width)
-        Paint (('    ' + ('-' * ($width - 6))).PadRight($width)) 'DarkGray'
-        $detail = @()
-        if ($rows[$i].Kind -eq 'task') {
-            $t = $rows[$i].Task
-            $detail += "takes $($t.Time)" + $(if ($t.Changes) { '   CHANGES THIS PC' } else { '   read only' })
-            $detail += ''
-            $detail += (Wrap $t.Desc ($width - 8))
-        } elseif ($rows[$i].Kind -eq 'start') {
-            $detail += 'Begin. Anything marked CHANGES offers a restore point first.'
-        } elseif ($rows[$i].Kind -eq 'cancel') {
-            $detail += 'Close without touching this computer.'
-        }
-        for ($d = 0; $d -lt 6; $d++) {
-            $line = if ($d -lt $detail.Count) { '      ' + $detail[$d] } else { '' }
-            if ($line.Length -gt $width) { $line = $line.Substring(0, $width) }
-            Paint $line.PadRight($width) $(if ($d -eq 0) { 'White' } else { 'DarkGray' })
-        }
-        Paint (('    ' + ('-' * ($width - 6))).PadRight($width)) 'DarkGray'
-
-        $sel2 = @($Tasks | Where-Object On)
-        $lo = ($sel2 | Measure-Object Low  -Sum).Sum
-        $hi = ($sel2 | Measure-Object High -Sum).Sum
-        $est = if (-not $sel2.Count) { 'nothing selected' }
-               elseif ($hi -le 1)    { 'under a minute' }
-               elseif ($lo -eq 0)    { "up to about $hi minutes" }
-               else                  { "roughly $lo to $hi minutes" }
-        $ch = @($sel2 | Where-Object Changes).Count
-        $sum = "    $($sel2.Count) selected, $est." + $(if ($ch) { "  $ch change this computer." } else { '' })
-        Paint $sum.PadRight($width) $(if ($ch) { 'Yellow' } else { 'White' })
-
-        }   # end of the detail and summary panes
-
-      # ---- ONE PAINT ----------------------------------------------------
-      # The whole frame goes out in a single write.
-      #
-      # Per-line Write-Host is flushed and rendered per line, so on every
-      # keypress the menu visibly rebuilt itself from the top down: the
-      # detail pane blanked, the coloured rows appeared low on the screen,
-      # then everything settled back into place. That IS the glitch, and no
-      # amount of cursor arithmetic fixes it, because the painting itself
-      # is what you are watching.
-      #
-      # With ANSI enabled the entire frame, colours included, is one string
-      # and one write, so the terminal repaints it as a single unit and the
-      # frame simply changes. The cursor is hidden across the write as
-      # well, because a caret racing down the screen reads as a glitch on
-      # its own.
-      #
-      # NO trailing newline after the final line. Writing one while on the
-      # bottom row scrolls the viewport, which is the "it moves all the way
-      # down to the bottom" half of the symptom.
-      if ($paint) {
-        try {
-            $wp = $Host.UI.RawUI.WindowPosition
-            $Host.UI.RawUI.CursorPosition =
-                New-Object System.Management.Automation.Host.Coordinates 0, $wp.Y
-        } catch { }
-
-        if ($Script:VtEnabled) {
-            $sb = New-Object System.Text.StringBuilder
-            [void]$sb.Append("$([char]27)[?25l")          # hide the cursor
-            for ($n = 0; $n -lt $frame.Count; $n++) {
-                [void]$sb.Append((Get-AnsiLine $frame[$n].T $frame[$n].C))
-                if ($n -lt $frame.Count - 1) { [void]$sb.Append("`n") }
-            }
-            [void]$sb.Append("$([char]27)[?25h")          # and put it back
-            [Console]::Write($sb.ToString())
-        } else {
-            # No ANSI available. Per-line drawing, which flickers, but a
-            # menu that flickers beats a menu that will not draw at all.
-            foreach ($ln in $frame) { Write-Host $ln.T -ForegroundColor $ln.C }
-        }
-      }
-      }
-
-      $sel2 = @($Tasks | Where-Object On)
-      if ($silent) {
-          if ($kp -ge $TestKeys.Count) { return $false }
-          $code = $TestKeys[$kp]; $kp++
-      } else {
-          $code = ($Host.UI.RawUI.ReadKey('NoEcho,IncludeKeyDown')).VirtualKeyCode
-      }
-      $k = [pscustomobject]@{ VirtualKeyCode = $code }
-        switch ($k.VirtualKeyCode) {
-            38 { $i--; if ($i -lt 0) { $i = $rows.Count - 1 } }             # up
-            40 { $i++; if ($i -ge $rows.Count) { $i = 0 } }                 # down
-            27 { return $false }                                            # esc
-            13 {                                                            # enter
-                switch ($rows[$i].Kind) {
-                    'task'   { $rows[$i].Task.On = -not $rows[$i].Task.On }
-                    'start'  { if ($sel2.Count) { return $true } }
-                    'cancel' { return $false }
-                }
-            }
-            32 { if ($rows[$i].Kind -eq 'task') { $rows[$i].Task.On = -not $rows[$i].Task.On } }  # space
-        }
-        # Skip the blank spacer row rather than letting the highlight
-        # land on nothing.
-        if ($rows[$i].Kind -eq 'gap') {
-            if ($k.VirtualKeyCode -eq 38) { $i-- } else { $i++ }
-            if ($i -lt 0) { $i = $rows.Count - 1 }
-            if ($i -ge $rows.Count) { $i = 0 }
-        }
-    }
-}
+# The picker, Wrap and Test-CanPick now live in Common.ps1, shared with
+# Health-Report.ps1, which asks a question of exactly the same shape
+# before it starts: which sections to include. Two copies would have
+# meant two sets of the frame-painting bugs recorded in there.
 
 # What the user just did, echoed under the numbered menu so a toggle is
 # visibly acknowledged and not just a character changing somewhere.
@@ -785,7 +438,11 @@ while (-not $confirmed) {
 # The arrow-key picker where the console can support it, the numbered
 # menu where it cannot. Both end the same way: $Tasks carries the choice.
 if ($CanPick) {
-    if (-not (Show-Picker)) {
+    # -ShowTime because these carry Time/Low/High and the estimate is the
+    # single most useful thing on the screen: a 40 minute repair and a 3
+    # second one look identical without it. No -AllowEmpty: pressing
+    # START with no repairs ticked is always a mistake here.
+    if (-not (Show-Picker -Items $Tasks -Title 'REPAIR AND RECOVERY' -ShowTime)) {
         Write-Host ''
         Write-Host '    Nothing was run.' -ForegroundColor DarkGray
         Write-Host ''
@@ -1308,12 +965,75 @@ if (On 'T') {
     # Named literally, one entry each, because a deletion loop built from
     # concatenated paths is how a previous cleanup script produced a plan
     # claiming more data than the drive held.
+    #
+    # THERE ARE THREE TEMP FOLDERS, not two, and the third is the one
+    # nobody clears. %WINDIR%\Temp and the signed-in user's
+    # %LOCALAPPDATA%\Temp are the obvious pair. The third belongs to the
+    # SYSTEM account, buried under System32\config\systemprofile, and
+    # every service and every installer that ran as SYSTEM wrote into it.
+    # Nothing routine ever empties it, including Disk Cleanup, so on an
+    # ex-corporate machine that has been in service for years it is
+    # frequently the single largest of the three.
+    #
+    # And on a machine that has had more than one account, each of those
+    # accounts has its own temp folder too. That is where the rest of the
+    # space is on a handed-down laptop.
     $spots = @(
-        @{ N = 'Windows temp';         P = "$env:WINDIR\Temp" }
-        @{ N = 'your temp';            P = $env:TEMP }
-        @{ N = 'Windows Update cache'; P = "$env:WINDIR\SoftwareDistribution\Download" }
-        @{ N = 'prefetch';             P = "$env:WINDIR\Prefetch" }
+        @{ N = 'Windows temp';            P = "$env:WINDIR\Temp" }
+        @{ N = 'your temp';               P = $env:TEMP }
+        @{ N = 'SYSTEM account temp';     P = "$env:WINDIR\System32\config\systemprofile\AppData\Local\Temp" }
+        @{ N = 'Windows Update cache';    P = "$env:WINDIR\SoftwareDistribution\Download" }
+        # Peer-to-peer update chunks Windows keeps to share with other
+        # PCs. Regenerated on demand, routinely several GB, and Disk
+        # Cleanup only offers it sometimes.
+        @{ N = 'update delivery cache';   P = "$env:WINDIR\SoftwareDistribution\DeliveryOptimization" }
+        @{ N = 'crash dumps';             P = "$env:LOCALAPPDATA\CrashDumps" }
+        @{ N = 'prefetch';                P = "$env:WINDIR\Prefetch" }
     )
+
+    # Every OTHER profile's temp folder. Needs administrator, which this
+    # tool has, and is the difference between clearing a few hundred MB
+    # and clearing tens of GB on a machine that has had several users.
+    #
+    # ONLY the Temp folder inside each profile, never the profile itself.
+    # The path is built from the real profile list rather than by
+    # enumerating C:\Users, so a folder somebody left behind that merely
+    # looks like a profile is not treated as one.
+    #
+    # Behind Spin with a timeout like every other WMI call here. Win32_UserProfile
+    # is not exempt just because it looks cheap: on a machine with a wedged
+    # WMI it never returns at all, and an unguarded call here would hang the
+    # cleanup before it deleted a single file. AsArray because Spin returns
+    # $null on a timeout, and @($null) is a one-element array holding
+    # nothing, which would then be treated as one profile with no path.
+    Work 'looking for other user profiles'
+    $others = AsArray (Spin 'other user profiles' -TimeoutSeconds 20 -Argument $env:USERPROFILE -Work {
+        param($me)
+        Get-CimInstance Win32_UserProfile -ErrorAction SilentlyContinue |
+            Where-Object { -not $_.Special -and $_.LocalPath -and $_.LocalPath -ine $me } |
+            ForEach-Object { $_.LocalPath }
+    })
+    foreach ($o in $others) {
+        $t = Join-Path $o 'AppData\Local\Temp'
+        if (Test-Path $t) { $spots += @{ N = "temp for $(Split-Path $o -Leaf)"; P = $t } }
+    }
+
+    # DELIBERATELY NOT CLEARED, and said out loud rather than silently
+    # omitted, because "it did not clear C:\Temp" looks like a bug until
+    # you know it is a decision:
+    #
+    #   C:\Temp        not created by Windows. Somebody made it, and on
+    #                  the machines this tool runs on it has held the
+    #                  only copy of a driver, an installer and once a
+    #                  set of photographs. A cleaner must not guess.
+    #   Windows.old    reclaimed by the "old Windows updates" repair,
+    #                  which uses Windows' own tooling and keeps the
+    #                  10-day rollback window honest.
+    if (Test-Path "$env:SystemDrive\Temp") {
+        $ct = [math]::Round((@(Get-ChildItem "$env:SystemDrive\Temp" -Recurse -File -ErrorAction SilentlyContinue |
+               Measure-Object Length -Sum).Sum / 1GB), 2)
+        Info "$env:SystemDrive\Temp holds $ct GB and was left alone: it is not a Windows folder, so its contents are somebody's."
+    }
     foreach ($s in $spots) {
         if (-not (Test-Path $s.P)) { Info "$($s.N): not present"; continue }
 

@@ -1,6 +1,6 @@
-﻿# Proves Invoke-WithRetry retries on a throw, gives up loudly, and does
+# Proves Invoke-WithRetry retries on a throw, gives up loudly, and does
 # NOT retry a legitimate empty result.
-. (Join-Path (Split-Path $PSScriptRoot -Parent) 'HealthReport\Common.ps1')
+. (Join-Path (Split-Path $PSScriptRoot -Parent) 'Tools\HealthReport\Common.ps1')
 $fail = 0
 
 Write-Output '1. succeeds on the third attempt'

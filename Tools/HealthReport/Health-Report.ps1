@@ -1,6 +1,6 @@
-<#
+﻿<#
 =======================================================================
- HEALTH AND HANDOVER REPORT
+ HEALTH REPORT AND REPAIR
 
  One click, one page, from data Windows already has. No extra software.
 
@@ -27,7 +27,22 @@
 # It deliberately does NOT gain the ability to repair anything unattended.
 # Anything that changes a machine still requires somebody to say yes.
 param(
-    [switch]$Unattended
+    [switch]$Unattended,
+    # Run ONLY these sections, by key: -Only 'M,A,B'. Everything else is
+    # switched off. Keys are listed by the chooser and in the README.
+    [string]$Only,
+    # Run everything EXCEPT these: -Skip 'U,P' to drop the update history
+    # and the program list, which are the two slowest.
+    [string]$Skip,
+    # Show the report on screen and write no file. On a machine you do
+    # not own, the saved report is that person's serial number and
+    # software inventory, and it then travels on your stick.
+    [switch]$NoSave,
+    # Do not relaunch as administrator. For running deliberately
+    # unelevated to see what a standard user's report looks like, and
+    # for any caller that has already elevated and does not want a
+    # second attempt.
+    [switch]$NoElevate
 )
 
 # SilentlyContinue is right for this script: it queries a lot of WMI that
@@ -61,6 +76,76 @@ $Script:SpinLog = $out
 # limit. Now it is said once, up front, and again per section.
 $Script:IsAdmin = ([Security.Principal.WindowsPrincipal] [Security.Principal.WindowsIdentity]::GetCurrent()
                   ).IsInRole([Security.Principal.WindowsBuiltInRole]::Administrator)
+
+# =====================================================================
+#  ELEVATE, WHATEVER STARTED US
+#
+#  Health-Report.bat has always elevated, so anything launched through
+#  the launcher, the Start menu shortcut or the desktop icon arrives
+#  here already an administrator and this block does nothing.
+#
+#  The gap was every OTHER way in. Right-click "Run with PowerShell",
+#  or typing `health-report` in a PowerShell window: both reach this
+#  file directly. PowerShell resolves a bare `health-report` to
+#  Health-Report.PS1 rather than the health-report.CMD sitting beside
+#  it, because it treats .ps1 as executable and finds it first. So the
+#  installed command bypassed the .bat entirely, ran unelevated, and
+#  quietly produced a report with no SMART data, no BitLocker state, no
+#  battery capacity and no activation channel. Verified on this machine
+#  after installing: `Get-Command health-report` resolved to the .ps1.
+#
+#  Elevation therefore belongs in the script, not only in its launcher.
+#
+#  It relaunches through Start-Process -Verb RunAs, which is a
+#  ShellExecute "runas" and happens BEFORE the new process starts. That
+#  matters beyond convenience: under AppLocker an unelevated
+#  administrator holds a filtered token where the Administrators SID is
+#  deny-only, so an "Administrators Allow" rule does not match and a
+#  script on removable media is killed before it can run a single line.
+#  Elevation has to come from outside the process, and this is that.
+# =====================================================================
+if (-not $Script:IsAdmin -and -not $NoElevate) {
+    if ($Unattended) {
+        # Never prompt in an unattended run. A UAC dialog on a scheduled
+        # task is a job that hangs until somebody happens to look at the
+        # machine, which is worse than a report with gaps in it.
+        Write-Host ''
+        Write-Host '    Not running as administrator, and -Unattended, so no prompt was shown.' -ForegroundColor Yellow
+        Write-Host '    SMART, BitLocker, battery capacity and activation will be blank.' -ForegroundColor DarkGray
+    } else {
+        Write-Host ''
+        Write-Host '    Asking for administrator. Battery wear, SMART data, activation' -ForegroundColor Cyan
+        Write-Host '    and BitLocker cannot be read without it.' -ForegroundColor DarkGray
+
+        # Forward every argument, or the switch the user typed is thrown
+        # away by the relaunch and silently does nothing. That exact bug
+        # shipped once in Health-Report.bat: -Unattended was accepted,
+        # dropped at the elevation step, and the run then sat forever on
+        # "Press Enter to close".
+        $fwd = @('-NoProfile', '-ExecutionPolicy', 'Bypass', '-File', "`"$PSCommandPath`"")
+        if ($Unattended) { $fwd += '-Unattended' }
+        if ($Only)       { $fwd += @('-Only',  "`"$Only`"") }
+        if ($Skip)       { $fwd += @('-Skip',  "`"$Skip`"") }
+        if ($NoSave)     { $fwd += '-NoSave' }
+
+        try {
+            Start-Process -FilePath 'powershell.exe' -ArgumentList $fwd -Verb RunAs -ErrorAction Stop
+            # The elevated copy owns the run now. Exiting here rather than
+            # continuing is what stops two reports being produced.
+            exit 0
+        } catch {
+            # UAC refused, or there is no interactive desktop to prompt
+            # on. Carry on unelevated rather than closing an empty
+            # window, which is indistinguishable from a crash, but say
+            # plainly what will be missing.
+            Write-Host ''
+            Write-Host '    Administrator was not granted. Continuing without it.' -ForegroundColor Yellow
+            Write-Host '    Battery, SMART, BitLocker and activation will be blank.' -ForegroundColor DarkGray
+            Write-Host '    Do NOT read a blank BitLocker section as "not encrypted".' -ForegroundColor DarkGray
+            Start-Sleep -Seconds 3
+        }
+    }
+}
 
 function Sec($t) { Write-Host ''; Write-Host "  $t" -ForegroundColor Cyan; Write-Host "  $('-' * $t.Length)" -ForegroundColor DarkCyan; [void]$out.Add(''); [void]$out.Add($t); [void]$out.Add('-' * $t.Length) }
 function Line($k, $v, $colour = 'Gray') {
@@ -100,7 +185,251 @@ Write-Host '   ==========================================' -ForegroundColor Cyan
 [void]$out.Add("HEALTH REPORT AND REPAIR")
 [void]$out.Add("Generated $(Get-Date -f 'yyyy-MM-dd HH:mm')")
 
+# =====================================================================
+#  IS WMI ALIVE AT ALL?
+#
+#  Almost everything below is a WMI query. When WMI itself is wedged,
+#  every single one of them burns its full timeout, so a run that
+#  normally takes three minutes takes twenty and produces a report whose
+#  every hardware section says "did not answer in time". Watching that
+#  happen is indistinguishable from the tool being broken, and it has
+#  been reported as exactly that.
+#
+#  Verified on a real machine, 2026-08-16: Win32_OperatingSystem,
+#  Win32_ComputerSystem, Win32_BIOS, listing the root namespaces, and
+#  wmic all hung past 25 seconds, while plain registry reads were
+#  instant. Restarting the Winmgmt service did not clear it.
+#
+#  So: ONE cheap probe, up front, with a short limit. It costs about a
+#  second on a healthy machine and turns twenty minutes of silence into
+#  a sentence. The run continues either way, because the checks that do
+#  not touch WMI still work and are still worth having.
+# =====================================================================
+$wmiAlive = $null -ne (Spin 'checking WMI is responding' {
+    param($x)
+    # __Namespace under root is the cheapest question WMI can be asked:
+    # it needs no provider, only the repository. If this does not answer,
+    # nothing else will either.
+    Get-CimInstance -Namespace root -ClassName __Namespace -ErrorAction SilentlyContinue | Select-Object -First 1
+} $null 15)
+
+if (-not $wmiAlive) {
+    Write-Host ''
+    Show-Box -Colour Red -Lines @(
+        'WMI IS NOT RESPONDING ON THIS MACHINE',
+        '',
+        'Windows Management Instrumentation is the service this report',
+        'reads almost everything from. It did not answer in 15 seconds.',
+        '',
+        'The report will still run, and the checks that do not need WMI',
+        'still work, but make, model, serial, battery, disks, memory and',
+        'drivers will all be blank. That is this PC, not this tool.',
+        '',
+        'To fix it, in order of how disruptive they are:',
+        '  1. Restart the machine. This clears it most of the time.',
+        '  2. Elevated:  net stop winmgmt  then  net start winmgmt',
+        '  3. Elevated:  winmgmt /verifyrepository',
+        '     and if it reports inconsistent:  winmgmt /salvagerepository'
+    )
+    Write-Host ''
+    [void]$out.Add('')
+    [void]$out.Add('WMI IS NOT RESPONDING ON THIS MACHINE')
+    [void]$out.Add('Windows Management Instrumentation did not answer within 15 seconds.')
+    [void]$out.Add('Every hardware section below is blank for that reason, which is a')
+    [void]$out.Add('fault on this PC and not a limitation of this report.')
+    [void]$out.Add('Fix: reboot; or restart the winmgmt service; or winmgmt /salvagerepository.')
+    [void]$out.Add('')
+    [void]$warn.Add('WMI is not responding: every hardware check below is unreliable')
+
+    # Not a prompt. A question underneath a wall of output is
+    # indistinguishable from a freeze, and this is a standing rule here.
+    # Five seconds is long enough to read the box and hit Ctrl+C.
+    if (-not $Script:Unattended) {
+        Write-Host '    Continuing in 5 seconds. Ctrl+C now to stop and fix WMI first.' -ForegroundColor DarkGray
+        Start-Sleep -Seconds 5
+    }
+}
+
+# =====================================================================
+#  WHAT TO INCLUDE
+#
+#  This report used to be all or nothing: it ran every check, printed
+#  every section, and wrote a file, every time. That is the right
+#  default and it was the only option, which is a different thing.
+#
+#  Three real jobs it could not do:
+#
+#    "Just tell me what this machine is."   Somebody at a desk wanting
+#    the make, model and serial, not eleven sections and a file.
+#
+#    "Do not write anything down."  On a machine you do not own, a
+#    saved report is somebody else's serial number and software
+#    inventory sitting on your stick. Sometimes the honest answer is to
+#    look, say it out loud, and leave nothing behind.
+#
+#    "Skip the event log sweep."  It is the slowest check here by a
+#    wide margin and on a machine with a noisy log it is most of the
+#    run time, and it is not always what you came for.
+#
+#  Same picker as the repair menu, deliberately: one interface to learn,
+#  and it is the one already proven on the fiddly half of the toolkit.
+#
+#  DEFAULTS ARE EVERYTHING ON, INCLUDING SAVING. Press ENTER on START
+#  and you get exactly the behaviour this tool has always had.
+# =====================================================================
+$Script:Sections = @(
+    [pscustomobject]@{ Key='M'; On=$true; Name='Machine: make, model, serial, BIOS, CPU, GPU'
+        Desc='What the computer actually is. Make, model, serial number, BIOS version and age, processor, graphics and motherboard. The section you want if somebody has handed you a laptop and not told you what it is.' }
+    [pscustomobject]@{ Key='A'; On=$true; Name='Windows activation'
+        Desc='Whether Windows is licensed, and by which channel: OEM, retail, or a volume licence that will stop working once the machine leaves the company it came from. The commonest unpleasant surprise on an ex-corporate laptop.' }
+    [pscustomobject]@{ Key='B'; On=$true; Name='Battery health and wear'
+        Desc='Design capacity against what the battery actually holds now, the wear percentage and the cycle count. Needs administrator. On a secondhand laptop this is usually the difference between usable and not.' }
+    [pscustomobject]@{ Key='D'; On=$true; Name='Storage: SMART, hours, free space'
+        Desc='Each drive''s own SMART health data, power-on hours, reallocated sectors, SSD write life and free space. Needs administrator for the SMART counters. A dying disk explains almost every other symptom on a machine.' }
+    [pscustomobject]@{ Key='R'; On=$true; Name='Memory: sticks, speed, slots'
+        Desc='How much RAM is fitted, at what speed, and how many slots are used, so you know whether it can be upgraded without opening it up.' }
+    [pscustomobject]@{ Key='V'; On=$true; Name='Drivers, ranked by severity'
+        Desc='Devices with missing or broken drivers, graded CRITICAL to LOW, plus where Windows is using its own generic driver in place of the vendor''s. Network faults rank CRITICAL on their own terms: a machine with no network driver cannot download its own network driver.' }
+    [pscustomobject]@{ Key='S'; On=$true; Name='Security: Defender, firewall, BitLocker'
+        Desc='Defender and firewall state, BitLocker encryption, any registered third-party antivirus, and Absolute/Computrace persistence. BitLocker matters most: a drive you have no key for is a drive you cannot recover.' }
+    [pscustomobject]@{ Key='T'; On=$true; Name='System state: restore points, uptime'
+        Desc='Restore points available to roll back to, and how long the machine has been up. Cheap and fast.' }
+    [pscustomobject]@{ Key='P'; On=$true; Name='Installed programs'
+        Desc='The full program list, cross-checked against the registry. This is the section that would have caught a bundled adware browser on a client machine, and it is the inventory you want when handing a PC over or comparing before and after.' }
+    [pscustomobject]@{ Key='U'; On=$true; Name='Windows Update history'
+        Desc='Recent update installs and failures. Where "why does this machine keep failing updates" is actually answered. Slower than most sections here.' }
+    [pscustomobject]@{ Key='E'; On=$true; Name='Pending reboot check'
+        Desc='Whether a restart is already queued. A machine with a reboot pending gives misleading results from almost every other check, and any repair run on it can half-apply. Fast, and worth leaving on.' }
+    # Not a check. The last row is the one that decides whether any of
+    # this is written down, and it is a row rather than a separate
+    # question so there is one screen and one decision, not two.
+    [pscustomobject]@{ Key='W'; On=$true; Name='SAVE A REPORT FILE when finished'
+        Desc='Untick to show everything on screen and write nothing to disk. A saved report contains this machine''s name, model, SERIAL NUMBER, installed software and event log entries. On somebody else''s computer that is their data, and it then travels on your stick. Untick when you only need to look.' }
+)
+
+function Include($k) {
+    # Keyed on the section key, not the name, so renaming a section in
+    # the picker cannot silently switch it off everywhere.
+    $map = @{ machine='M'; activation='A'; battery='B'; storage='D'; memory='R'
+              drivers='V'; security='S'; state='T'; software='P'; updates='U'; reboot='E'; save='W' }
+    $key = $map[$k]
+    if (-not $key) { return $true }   # an unmapped name is a bug, not a reason to skip a check
+    return [bool](($Script:Sections | Where-Object { $_.Key -eq $key }).On)
+}
+
+# -Only, -Skip and -NoSave apply ALWAYS, including under -Unattended.
+#
+# They were originally inside the `if (-not $Unattended)` block below,
+# next to the picker, which meant `-Unattended -Only 'E'` accepted the
+# switch, ignored it completely, and ran all eleven sections. This
+# project has that exact failure written down already: -Unattended was
+# once accepted and thrown away by Health-Report.bat, and the run then
+# sat forever on "Press Enter to close". A switch that is accepted and
+# silently does nothing is worse than one that is rejected, because
+# nothing anywhere says it did not work.
+#
+# Only the INTERACTIVE picker is gated on -Unattended, because that is
+# the only part that needs a keypress.
+if ($Only) {
+    foreach ($s in $Script:Sections) { $s.On = $false }
+    foreach ($k in ($Only -split '[,\s]+' | Where-Object { $_ })) {
+        $hit = $Script:Sections | Where-Object { $_.Key -ieq $k }
+        if ($hit) { $hit.On = $true } else { Write-Host "    !! -Only: '$k' is not a section key" -ForegroundColor Yellow }
+    }
+}
+foreach ($k in ($Skip -split '[,\s]+' | Where-Object { $_ })) {
+    $hit = $Script:Sections | Where-Object { $_.Key -ieq $k }
+    if ($hit) { $hit.On = $false } else { Write-Host "    !! -Skip: '$k' is not a section key" -ForegroundColor Yellow }
+}
+if ($NoSave) { ($Script:Sections | Where-Object { $_.Key -eq 'W' }).On = $false }
+
+if (-not $Script:Unattended) {
+    # Ask, unless the command line already answered. Asking after the
+    # caller has been explicit would be ignoring them.
+    if (-not $Only -and -not $Skip -and -not $NoSave) {
+        if (Test-CanPick) {
+            # -AllowEmpty: everything unticked including the save row is a
+            # legitimate choice here, meaning "look at nothing, save
+            # nothing", unlike the repair menu where an empty START is
+            # always a mistake.
+            if (-not (Show-Picker -Items $Script:Sections -Title 'HEALTH REPORT: WHAT TO INCLUDE' `
+                                  -StartLabel 'CONTINUE' -CancelLabel 'Quit without running' `
+                                  -Hint '    Move to CONTINUE and press ENTER to run.  Esc quits.' -AllowEmpty)) {
+                Write-Host ''
+                Write-Host '    Nothing was run.' -ForegroundColor DarkGray
+                Write-Host ''
+                exit 0
+            }
+        } else {
+            # No picker available: a redirected run, a short window, or a
+            # host whose ReadKey throws. Say what the defaults are rather
+            # than silently applying them.
+            Write-Host ''
+            Write-Host '    Running every section and saving a report. This console cannot' -ForegroundColor DarkGray
+            Write-Host '    show the chooser; use -Only, -Skip or -NoSave to change it.' -ForegroundColor DarkGray
+        }
+    }
+}
+
+# =====================================================================
+#  WMI IS DEAD: SKIP THE SECTIONS THAT ARE ENTIRELY WMI
+#
+#  Warning and then carrying on was not enough, and this is the bug
+#  report that proved it: "the health report is still freezing up when
+#  it's trying to retrieve the machine info and the bios info."
+#
+#  Both of those are exactly what you would expect. The probe correctly
+#  said WMI was not answering, and then the Machine section went ahead
+#  and asked WMI for the computer system, the BIOS, the OS and the
+#  motherboard anyway. Four calls, twenty seconds each, every one of
+#  them certain to time out. Storage, battery, memory and drivers do
+#  the same. That is over three minutes of a screen that looks frozen
+#  AFTER being told the reason it would be.
+#
+#  A timeout is a safety net for a call that MIGHT hang. It is the
+#  wrong tool for a call already known to be doomed. So when the probe
+#  fails, the sections that are nothing but WMI are switched off and
+#  named, and the run goes straight to the checks that still work:
+#  installed programs and the pending-reboot check read the registry,
+#  and the update history goes through the Windows Update COM API.
+#
+#  -Only still wins if you deliberately ask for one of them, because
+#  "prove to me it is really WMI" is a legitimate thing to want.
+# =====================================================================
+if (-not $wmiAlive -and -not $Only) {
+    $wmiOnly = @('M','A','B','D','R','V','T')
+    $turnedOff = @()
+    foreach ($s in $Script:Sections) {
+        if ($s.Key -in $wmiOnly -and $s.On) { $s.On = $false; $turnedOff += $s.Name }
+    }
+    if ($turnedOff.Count) {
+        Write-Host ''
+        Write-Host "    Skipping $($turnedOff.Count) section(s) that read nothing but WMI, rather than" -ForegroundColor Yellow
+        Write-Host '    waiting 20 seconds each for calls that cannot answer:' -ForegroundColor DarkGray
+        foreach ($n in $turnedOff) { Write-Host "      - $n" -ForegroundColor DarkGray }
+        Write-Host ''
+        Write-Host '    Use -Only to force one of them anyway.' -ForegroundColor DarkGray
+        [void]$out.Add('')
+        [void]$out.Add('Sections skipped because WMI is not responding on this machine:')
+        foreach ($n in $turnedOff) { [void]$out.Add("  - $n") }
+        Write-Host ''
+    }
+}
+
+# Recorded in the report itself. A file that silently omits three
+# sections is indistinguishable from a run where those checks found
+# nothing, and that ambiguity is exactly what a handover record must not
+# have.
+$offNow = @($Script:Sections | Where-Object { -not $_.On -and $_.Key -ne 'W' })
+if ($offNow.Count) {
+    [void]$out.Add('')
+    [void]$out.Add("NOT INCLUDED IN THIS REPORT, by choice at the start of the run:")
+    foreach ($s in $offNow) { [void]$out.Add("  - $($s.Name)") }
+    [void]$out.Add('These were not checked. Absence below is not a finding about this PC.')
+}
+
 # ---------------------------------------------------------- machine
+if (Include 'machine') {
 Sec 'Machine'
 # THIS is where the report froze on one desktop: the
 # heading appeared and then nothing, because all three of these ran
@@ -183,7 +512,9 @@ $gpu = AsArray (Spin 'reading the graphics adapter' {
 } $null 20)
 foreach ($g in $gpu) { if ($g.Name) { Line 'GPU' $g.Name } }
 
+}   # end of the 'machine' section
 # ------------------------------------------------------- activation
+if (Include 'activation') {
 Sec 'Windows activation'
 # SoftwareLicensingProduct is the slowest thing in this report by a wide
 # margin, and it prints nothing while it works, which is why this
@@ -215,7 +546,9 @@ if ($lic) {
     else { Fail "Windows is NOT activated ($stat). A club laptop should be activated before handover." }
 }
 
+}   # end of the 'activation' section
 # ----------------------------------------------------------- battery
+if (Include 'battery') {
 Sec 'Battery'
 $batt = Spin 'asking the battery for its capacity' {
     param($x)
@@ -270,7 +603,9 @@ if ($bat -and $full) {
     Line '' 'For real figures run:  powercfg /batteryreport'
 }
 
+}   # end of the 'battery' section
 # -------------------------------------------------------------- disk
+if (Include 'storage') {
 Sec 'Storage'
 $disks = Spin 'asking each drive for its health and SMART data' {
     param($x)
@@ -309,7 +644,9 @@ $c = Get-PSDrive C
 Line 'C: free' "$([math]::Round($c.Free/1GB,1)) GB of $([math]::Round(($c.Used+$c.Free)/1GB,1)) GB"
 if (($c.Free / ($c.Used + $c.Free)) -lt 0.15) { Warn 'less than 15% free on C:' }
 
+}   # end of the 'storage' section
 # --------------------------------------------------------------- RAM
+if (Include 'memory') {
 Sec 'Memory'
 $ram = AsArray (Spin 'reading the memory configuration' {
     param($x)
@@ -321,6 +658,7 @@ else {
     foreach ($m in $ram) { Line "  slot $($m.DeviceLocator)" "$([math]::Round($m.Capacity/1GB,0)) GB $($m.Speed)MHz $($m.Manufacturer)" }
 }
 
+}   # end of the 'memory' section
 # ----------------------------------------------------------- drivers
 # Folded in from the old standalone Drivers tool, which was removed.
 #
@@ -337,6 +675,7 @@ else {
 #      the vendor's? That is why the graphics are slow and the WiFi drops.
 #   3. How old is each driver, so "out of date" is a date, not a feeling.
 # Installing is a separate, asked-for step in repair and recovery.
+if (Include 'drivers') {
 Sec 'Drivers'
 
 $devProblem = AsArray (Spin 'looking for devices with driver problems' {
@@ -578,7 +917,9 @@ if (-not $drv.Count) {
     [void]$out.Add('')
 }
 
+}   # end of the 'drivers' section
 # ---------------------------------------------------------- security
+if (Include 'security') {
 Sec 'Security'
 # Every call in this section talks to a Windows SERVICE, and a wedged
 # service does not return an error, it simply never answers. On a machine
@@ -590,22 +931,42 @@ Sec 'Security'
 # A check that always gives up is worse than a slow one: it trains you to
 # ignore the whole section. Defender and BitLocker in particular are slow
 # to first response on a machine that has not been used in a while.
-$mp = Spin 'asking Defender for its status' {
-    param($x)
-    Get-MpComputerStatus -ErrorAction SilentlyContinue
-} $null 90
-if (-not $mp) { Warn 'Could not read Defender status. It needs administrator rights, a third-party antivirus has replaced it, or the Defender service is not responding.' }
+# Defender and the firewall are CIM too, under root\Microsoft\Windows\
+# Defender and root\StandardCimv2, so a wedged WMI takes both of them
+# with it. They are the two longest timeouts in the whole report, 90 and
+# 60 seconds, and together they were 150 of the 258 seconds a run took
+# on a machine whose WMI had already been proven dead 15 seconds in.
+#
+# The rest of this section is registry work and still answers, which is
+# why the section stays on rather than being skipped whole: the
+# Absolute/Computrace check is one of the more valuable things here and
+# it costs nothing.
+$mp = if ($wmiAlive) {
+    Spin 'asking Defender for its status' {
+        param($x)
+        Get-MpComputerStatus -ErrorAction SilentlyContinue
+    } $null 90
+} else { $null }
+if (-not $mp) {
+    if ($wmiAlive) { Warn 'Could not read Defender status. It needs administrator rights, a third-party antivirus has replaced it, or the Defender service is not responding.' }
+    else           { Warn 'Defender status not read: WMI is not responding on this machine. Not a statement about Defender.' }
+}
 if ($mp) {
     Line 'Defender real-time' $(if($mp.RealTimeProtectionEnabled){'ON'}else{'OFF'})
     Line 'Signatures' $(if($mp.AntivirusSignatureLastUpdated){$mp.AntivirusSignatureLastUpdated.ToString('yyyy-MM-dd')}else{'unknown'})
     if (-not $mp.RealTimeProtectionEnabled) { Fail 'Defender real-time protection is OFF' }
     if ($mp.AntivirusSignatureLastUpdated -and $mp.AntivirusSignatureLastUpdated -lt (Get-Date).AddDays(-7)) { Warn 'antivirus signatures are over a week old' }
 }
-$fwAll = AsArray (Spin 'asking the firewall for its profiles' {
-    param($x)
-    Get-NetFirewallProfile -ErrorAction SilentlyContinue
-} $null 60)
-if (-not $fwAll.Count) { Warn 'Could not read the firewall profiles. The Windows Firewall service may not be running.' }
+$fwAll = if ($wmiAlive) {
+    AsArray (Spin 'asking the firewall for its profiles' {
+        param($x)
+        Get-NetFirewallProfile -ErrorAction SilentlyContinue
+    } $null 60)
+} else { ,@() }
+if (-not $fwAll.Count) {
+    if ($wmiAlive) { Warn 'Could not read the firewall profiles. The Windows Firewall service may not be running.' }
+    else           { Warn 'Firewall state not read: WMI is not responding on this machine. Not a statement about the firewall.' }
+}
 else {
     $fw = @($fwAll | Where-Object { -not $_.Enabled })
     if ($fw.Count) { Fail "firewall OFF for: $($fw.Name -join ', ')" } else { Good 'firewall on for all profiles' }
@@ -648,7 +1009,9 @@ if ($abs.Count) {
     Warn "Absolute/Computrace persistence detected ($($abs -join ', ')). Ex-corporate laptops ship with this; it can phone home and reinstall itself after a wipe. Disable it in BIOS if the previous owner has released the machine."
 } else { Good 'no Absolute/Computrace persistence found' }
 
+}   # end of the 'security' section
 # ------------------------------------------------------ system state
+if (Include 'state') {
 Sec 'System state'
 $up = (Get-Date) - $os.LastBootUpTime
 Line 'Uptime' "$([math]::Round($up.TotalDays,1)) days"
@@ -763,6 +1126,7 @@ $net = AsArray (Spin 'listing the network adapters' {
 Line 'Network' $(if($net.Count){ ($net | ForEach-Object { $_.Name }) -join ', ' } else { 'NO active adapter' })
 if (-not $net.Count) { Fail 'no active network adapter. Driver missing, or the hardware is off.' }
 
+}   # end of the 'state' section
 # ------------------------------------------------- installed software
 # THIS IS THE LOG WE DID NOT HAVE.
 #
@@ -771,6 +1135,7 @@ if (-not $net.Count) { Fail 'no active network adapter. Driver missing, or the h
 # listed registered ANTIVIRUS and never listed installed PROGRAMS. An
 # inventory would have shown it sitting there, and it is also the record
 # you want when handing a machine over or comparing before and after.
+if (Include 'software') {
 Sec 'Installed software'
 $apps = Spin 'reading the list of installed programs' {
     param($x)
@@ -830,11 +1195,13 @@ else {
     }
 }
 
+}   # end of the 'software' section
 # ---------------------------------------------------- Windows Update
 # 161 of the 175 reliability events on one client laptop came from the
 # Windows Update client, and this report had no way to say what they
 # were. The install history is where "why does this machine keep
 # failing updates" is actually answered.
+if (Include 'updates') {
 Sec 'Windows Update history'
 $wu = Spin 'reading the update history' {
     param($x)
@@ -864,9 +1231,11 @@ else {
     }
 }
 
+}   # end of the 'updates' section
 # --------------------------------------------------- pending reboot
 # A machine with a reboot pending gives misleading results from almost
 # every other check, and repairs half-apply. Say so.
+if (Include 'reboot') {
 Sec 'Pending reboot'
 $pend = @()
 if (Test-Path 'HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Component Based Servicing\RebootPending') { $pend += 'servicing' }
@@ -876,6 +1245,7 @@ if ($pend.Count) {
     Warn "A REBOOT IS PENDING ($($pend -join ', ')). Repairs can half-apply until it is done."
 } else { Good 'no reboot pending' }
 
+}   # end of the 'reboot' section
 # ------------------------------------------------------------ verdict
 Write-Host ''
 Write-Host '   ==========================================' -ForegroundColor Cyan
@@ -967,6 +1337,23 @@ $verdictText = if ($bad.Count) { "NOT READY: $($bad.Count) fault(s) need attenti
                elseif ($warn.Count) { "USABLE, with $($warn.Count) thing(s) to note" }
                else { 'READY TO HAND OVER' }
 
+# The save row from the chooser, or -NoSave. Everything above has
+# already been printed, so this decides only whether it is also written
+# down, which is the one part that leaves the machine.
+if (-not (Include 'save')) {
+    Write-Host ''
+    Show-Box -Colour Cyan -Lines @(
+        'NOTHING WAS SAVED',
+        '',
+        'You asked for no report file, so none was written and nothing',
+        'about this machine has been recorded anywhere.',
+        '',
+        'Everything found is on screen above. Scroll up before closing.'
+    )
+    Write-Host ''
+    $file = $null
+} else {
+
 $file = Get-ReportPath "report-$env:COMPUTERNAME-$stamp.md"
 if ($file) {
     try {
@@ -988,6 +1375,8 @@ if ($file) {
     Write-Host '    Could not find anywhere writable to save the report.' -ForegroundColor Red
     Write-Host '    Everything found is on screen above. Scroll up before closing this.' -ForegroundColor Yellow
 }
+
+}   # end of the "save a report file" branch
 
 # ---------------------------------------------------- repair and fix
 # Everything above only READS. The repairs live behind this prompt so a
