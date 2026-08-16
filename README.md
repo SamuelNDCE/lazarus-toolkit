@@ -471,6 +471,7 @@ The tick means it has been exercised on a real machine, not merely written.
 .\Tests\Run-Checks.ps1                                     # this checkout
 .\Tests\Run-Checks.ps1 -Root D:\Tools         # a deployed stick
 .\Tests\Test-StickReady.ps1 -Drive D:                      # before unplugging
+.\Tests\test-stall-detection.ps1                           # real SFC/DISM watchdog firing, ~2.5 min
 ```
 
 `Run-Checks` exits 0 or a failure count, so it can gate a commit. It verifies syntax, that every
@@ -479,6 +480,12 @@ functions or dead variables, that no slow call was added without a progress indi
 box renders as a true rectangle, that the watchdogs start and stop, that retry behaves, that the
 shared picker navigates and toggles and refuses an empty START, and that nothing personal is about
 to be published.
+
+`test-stall-detection.ps1` is deliberately **not** part of `Run-Checks`. Everything else in `Tests\`
+finishes in seconds; this one needs two real 30-second poll cycles per case to prove the watchdog
+actually prints a warning on a genuinely stale log, not just that the function starts and stops
+without throwing (`test-watchdogs.ps1` already covers that, fast). Run it by hand when touching
+`Start-StallWatch` or either SFC/DISM repair path.
 
 It also runs each checker against `Tests/Fixtures/broken.ps1`, a deliberately wrong file, to prove
 the checkers still fail when they should. That is not ceremony: the dead-variable check was silently
