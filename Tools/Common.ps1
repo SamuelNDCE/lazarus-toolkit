@@ -28,7 +28,7 @@ $Script:CanAnimate = -not [Console]::IsOutputRedirected
 #  Common.ps1 is dot-sourced by every script here, so this is the one
 #  definition. Bump it whenever the tool changes.
 # ---------------------------------------------------------------------
-$Script:ToolVersion = '1.2.2'
+$Script:ToolVersion = '1.3.0'
 
 
 # ---------------------------------------------------------------------
@@ -1157,9 +1157,16 @@ function Show-Picker {
     }
 
     # Clear ONCE, here, so the first frame starts on a clean screen and
-    # there is nothing left below it. Never again inside the loop: that
-    # clear is what made the list flash and appear to jump on every
-    # keypress, because for one frame the screen was genuinely empty.
+    # there is nothing left below it. Never again inside the loop while
+    # ANSI is available: that clear is what made the list flash and
+    # appear to jump on every keypress, because for one frame the screen
+    # was genuinely empty.
+    #
+    # LastFrameLines is reset with it. It is how far the cursor has to
+    # travel back up to repaint over the previous frame, and a value
+    # left over from an earlier picker would step into whatever is above
+    # this one.
+    $Script:LastFrameLines = 0
     if (-not $silent) { Clear-Host }
 
     while ($true) {
@@ -1369,24 +1376,56 @@ function Show-Picker {
       # NO trailing newline after the final line. Writing one while on the
       # bottom row scrolls the viewport.
       if ($paint) {
-        try {
-            $wp = $Host.UI.RawUI.WindowPosition
-            $Host.UI.RawUI.CursorPosition =
-                New-Object System.Management.Automation.Host.Coordinates 0, $wp.Y
-        } catch { }
-
+        # RELATIVE CURSOR MOVEMENT. No absolute row is used anywhere.
+        #
+        # This anchored to $Host.UI.RawUI.WindowPosition.Y, the top of
+        # the visible window, and that is why the menu kept stacking
+        # copies of itself no matter how carefully the frame was sized.
+        #
+        # Set-ConsoleLook asks for a 9001 row scrollback buffer, so the
+        # buffer is 9001 rows against a window of about 30. In Windows
+        # Terminal the content is appended at the BOTTOM of that buffer
+        # and the viewport follows it, so WindowPosition tracks where
+        # you are LOOKING, not where the frame was drawn. Repainting at
+        # "the top of the window" therefore aimed at a row that had
+        # nothing to do with the previous frame, and every keypress left
+        # another copy behind. Measured on this machine: BufferSize
+        # 120x9001, WindowSize 120x30.
+        #
+        # The file already knew this. Its own comments record that an
+        # absolute-row anchor "silently points at the wrong line" once
+        # the buffer is 9001 rather than 30. Moving the anchor from a
+        # remembered row to the window top was still an absolute row,
+        # so it inherited the same defect.
+        #
+        # ESC[{n}F moves the cursor n lines UP and to column 1. It is
+        # relative, so it cannot be wrong about where it started: the
+        # cursor is exactly where the last frame finished. Buffer size,
+        # viewport position and any scrolling in between are all
+        # irrelevant.
         if ($Script:VtEnabled) {
             $sb = New-Object System.Text.StringBuilder
             [void]$sb.Append("$([char]27)[?25l")          # hide the cursor
+            # Step back over the frame just drawn. Skipped on the first
+            # pass, when there is nothing above us yet.
+            if ($Script:LastFrameLines -gt 0) {
+                [void]$sb.Append("$([char]27)[$($Script:LastFrameLines)F")
+            }
             for ($n = 0; $n -lt $frame.Count; $n++) {
                 [void]$sb.Append((Get-AnsiLine $frame[$n].T $frame[$n].C))
                 if ($n -lt $frame.Count - 1) { [void]$sb.Append("`n") }
             }
             [void]$sb.Append("$([char]27)[?25h")          # and put it back
             [Console]::Write($sb.ToString())
+            # Every line but the last ended in a newline, so the cursor
+            # sits on the final line: that is frame.Count - 1 lines to
+            # come back up next time.
+            $Script:LastFrameLines = $frame.Count - 1
         } else {
-            # No ANSI available. Per-line drawing, which flickers, but a
-            # menu that flickers beats a menu that will not draw at all.
+            # No ANSI. Clear and redraw, which flickers, but a menu that
+            # flickers is a menu you can use. Appending without clearing
+            # is what produced the stacked copies in the first place.
+            Clear-Host
             foreach ($ln in $frame) { Write-Host $ln.T -ForegroundColor $ln.C }
         }
       }

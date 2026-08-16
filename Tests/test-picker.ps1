@@ -191,6 +191,44 @@ $r = Show-Picker -Items $items -ShowAllNone -TestKeys @(40, 40, 40, 40, 13, 27)
 Check 'without -SkipProceeds the skip row does not proceed' ($r -eq $false)
 
 Write-Host ''
+Write-Host 'THE REDRAW MUST NOT STACK' -ForegroundColor Cyan
+
+# THE ACTUAL BUG, after three wrong diagnoses.
+#
+# Every earlier fix here sized the frame so it would fit the window, on
+# the theory that an over-tall frame scrolled the console and moved the
+# anchor. The frame did fit, and the menu still stacked, because the
+# anchor was wrong for a reason that had nothing to do with height:
+#
+#   $Host.UI.RawUI.WindowPosition.Y is the top of the VISIBLE WINDOW
+#   within the buffer. Set-ConsoleLook asks for a 9001 row scrollback,
+#   so the buffer is 9001 rows against a window of 30. Content is
+#   appended at the bottom of the buffer and the viewport follows it,
+#   so WindowPosition tracks where you are LOOKING, not where the frame
+#   was drawn. Measured: BufferSize 120x9001, WindowSize 120x30.
+#
+# The fix is to use no absolute row at all: step back up over the frame
+# just drawn with ESC[{n}F, which is relative and cannot be wrong about
+# where it started.
+$common = Get-Content (Join-Path $Root 'Common.ps1') -Raw
+
+Check 'the redraw does not anchor to WindowPosition' `
+      (-not ($common -match 'CursorPosition\s*=[\s\S]{0,120}WindowPosition')) `
+      'an absolute row is meaningless when the buffer is 9001 and the window is 30'
+
+Check 'the redraw steps back with a relative ESC[nF' `
+      ($common -match '\[\$\(\$Script:LastFrameLines\)F') `
+      'relative movement is the only anchor that survives a scrolling viewport'
+
+Check 'LastFrameLines is reset when the picker opens' `
+      ($common -match '\$Script:LastFrameLines = 0') `
+      'a leftover value would step up into whatever was on screen before'
+
+Check 'the no-ANSI path clears instead of appending' `
+      ($common -match '(?s)No ANSI.*?Clear-Host') `
+      'appending without clearing is what stacked the frames'
+
+Write-Host ''
 Write-Host 'NO LINE MAY WRAP' -ForegroundColor Cyan
 
 # THE THIRD ROUTE TO THE SAME BUG.
