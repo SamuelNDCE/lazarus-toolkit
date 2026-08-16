@@ -176,6 +176,83 @@ $null = Show-Picker -Items $items -TestKeys @(27)
 $rendered = @($Script:LastRender)
 Check 'without -ShowAllNone there is no SKIP ALL row' (@($rendered | Where-Object { $_ -match 'SKIP ALL' }).Count -eq 0)
 
+# -SkipProceeds: the skip row unticks everything AND goes, in one press.
+# For the report that means "skip step 1, go to the repairs", which is
+# one decision rather than untick-everything-then-confirm-separately.
+$items = NewItems
+$r = Show-Picker -Items $items -ShowAllNone -SkipProceeds -AllowEmpty -TestKeys @(40, 40, 40, 40, 13)
+Check '-SkipProceeds returns straight away' ($r -eq $true)
+Check 'and it unticked everything first'    (@($items | Where-Object { $_.On }).Count -eq 0)
+
+# Without it the skip row only unticks, so the repair menu keeps its
+# behaviour: there is no way to start an empty repair run by accident.
+$items = NewItems
+$r = Show-Picker -Items $items -ShowAllNone -TestKeys @(40, 40, 40, 40, 13, 27)
+Check 'without -SkipProceeds the skip row does not proceed' ($r -eq $false)
+
+Write-Host ''
+Write-Host 'THE FRAME MUST FIT THE WINDOW' -ForegroundColor Cyan
+
+# THE BUG THIS EXISTS FOR, twice now.
+#
+# The redraw anchors to the top of the VISIBLE window and repaints over
+# the previous frame. That only works while the frame fits: one row too
+# tall and the console scrolls, the anchor points at a row that has
+# moved, and every keypress leaves another complete copy of the menu on
+# screen. Reported as "it's repeating the health whatever on and on".
+#
+# The first cause was a hand-counted $HeaderLines that stopped matching
+# the header. The second was a Max(5, ...) FLOOR on the option rows,
+# which forced five of them on top of fixed chrome that already did not
+# fit in a short window.
+#
+# So the arithmetic is checked directly, at every window height the tool
+# can plausibly meet, rather than by looking at a menu and hoping.
+function Get-FrameHeight([int]$WindowHeight, [int]$HeaderLines, [int]$RowCount) {
+    $markers = 2; $detailFixed = 4
+    $budget = $WindowHeight - $HeaderLines - $markers - $detailFixed - 1
+    $detailBody = 6
+    while ($detailBody -gt 2 -and ($detailBody + 3) -gt $budget) { $detailBody-- }
+    $avail  = $budget - $detailBody
+    $vCount = [Math]::Min($RowCount, [Math]::Max(1, $avail))
+    # header + above-marker + rows + below-marker + blank + rule + detail + rule + summary
+    return $HeaderLines + 1 + $vCount + 1 + 1 + 1 + $detailBody + 1 + 1
+}
+
+$overflow = @()
+foreach ($wh in 26..60) {
+    foreach ($hdr in 8..16) {          # the header varies by caller
+        foreach ($rc in 6..26) {       # 3 items up to the full report list
+            $fh = Get-FrameHeight $wh $hdr $rc
+            # -ge, not -gt. A frame that EXACTLY fills the window still
+            # scrolls it by one, because its last line ends with a
+            # newline like every other. The bar is $wh - 1.
+            if ($fh -ge $wh) { $overflow += "window=$wh header=$hdr rows=$rc frame=$fh" }
+        }
+    }
+}
+Check 'the frame always leaves a spare row, at any size' ($overflow.Count -eq 0) `
+      $(if ($overflow.Count) { "$($overflow.Count) overflow(s), first: $($overflow[0])" })
+
+# And prove the OLD arithmetic fails this, so the check is known to bite.
+function Get-OldFrameHeight([int]$WindowHeight, [int]$HeaderLines, [int]$RowCount) {
+    $avail = $WindowHeight - $HeaderLines - 10 - 2 - 2
+    $vCount = [Math]::Max(5, [Math]::Min($RowCount, $avail))
+    return $HeaderLines + 1 + $vCount + 1 + 10
+}
+$oldBad = @(foreach ($wh in 26..60) { if ((Get-OldFrameHeight $wh 9 20) -ge $wh) { $wh } })
+Check 'the old arithmetic really did overflow (so this check bites)' ($oldBad.Count -gt 0) `
+      'the old sum fit everywhere, so this test proves nothing'
+
+# The header height must be DERIVED from the header, never hand-counted.
+$common = Get-Content (Join-Path $Root 'Common.ps1') -Raw
+Check 'HeaderLines is derived from the header, not a literal' `
+      ($common -match '\$HeaderLines = \$headerText\.Count') `
+      'a hand-counted header height is what broke this the first time'
+Check 'the option-row count has no floor above 1' `
+      (-not ($common -match '\$vCount = \[Math\]::Max\(5')) `
+      'a floor forces rows onto a frame that already does not fit'
+
 Write-Host ''
 Write-Host 'THE REPORT SECTIONS ARE WELL FORMED' -ForegroundColor Cyan
 

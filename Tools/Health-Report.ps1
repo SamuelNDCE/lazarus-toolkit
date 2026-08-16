@@ -391,11 +391,28 @@ if (-not $Script:Unattended) {
             # legitimate choice here, meaning "look at nothing, save
             # nothing", unlike the repair menu where an empty START is
             # always a mistake.
-            if (-not (Show-Picker -Items $Script:Sections -Title 'HEALTH REPORT: WHAT TO INCLUDE' `
-                                  -StartLabel 'CONTINUE  (recommended: leave everything on)' `
-                                  -CancelLabel 'Quit without running' `
-                                  -Hint '    RECOMMENDED: leave everything ON and press ENTER on CONTINUE.' `
-                                  -AllowEmpty -ShowAllNone)) {
+            # The two phases are named on screen, because this is the
+            # first thing anyone sees and "what am I even choosing here"
+            # is the obvious question. The report only READS. The repairs
+            # come after it, are chosen separately, and are the half that
+            # can change the machine.
+            if (-not (Show-Picker -Items $Script:Sections `
+                      -Title 'STEP 1 of 2:  THE HEALTH REPORT  (reads only, changes nothing)' `
+                      -Hint @(
+                          '    Up and Down to move.  ENTER switches an option on or off.',
+                          '',
+                          '    STEP 1, this screen: the REPORT. It looks at the machine and',
+                          '                         tells you what is wrong. It changes nothing.',
+                          '    STEP 2, afterwards:  the REPAIRS. Chosen separately, and the',
+                          '                         only half that can change this PC.'
+                      ) `
+                      -StartLabel  'CONTINUE  ->  run the report  (recommended)' `
+                      -AllOnLabel  'Turn every option ON  (recommended)' `
+                      -SkipLabel   'SKIP THE REPORT  ->  go straight to the repairs' `
+                      -AllOnDetail 'Switch every section back on.' `
+                      -SkipDetail  'Skip step 1 entirely and go to the repair menu.' `
+                      -CancelLabel 'Quit. Do not report, do not repair.' `
+                      -AllowEmpty -ShowAllNone -SkipProceeds)) {
                 Write-Host ''
                 Write-Host '    Nothing was run.' -ForegroundColor DarkGray
                 Write-Host ''

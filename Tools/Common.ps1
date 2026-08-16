@@ -28,7 +28,7 @@ $Script:CanAnimate = -not [Console]::IsOutputRedirected
 #  Common.ps1 is dot-sourced by every script here, so this is the one
 #  definition. Bump it whenever the tool changes.
 # ---------------------------------------------------------------------
-$Script:ToolVersion = '1.2.0'
+$Script:ToolVersion = '1.2.1'
 
 
 # ---------------------------------------------------------------------
@@ -1000,10 +1000,22 @@ function Test-CanPick {
     try {
         $h = $Host.UI.RawUI
         if ($null -eq $h -or $null -eq $h.WindowSize) { return $false }
-        # The picker scrolls its own viewport, so it only needs room for a
-        # usable window plus the detail pane. Below this the numbered menu
-        # is genuinely the better experience.
-        if ($h.WindowSize.Height -lt 24) { return $false }
+        # Enough room for the frame at its SMALLEST: the header, the two
+        # scroll markers, a detail pane squeezed to two lines, the four
+        # fixed detail rows, three option rows, and the spare row that
+        # stops a full frame scrolling itself.
+        #
+        # 24 was a guess, and it was wrong in the direction that hurts:
+        # it let the picker run in windows where the frame could not fit,
+        # and a frame that does not fit scrolls the console, which
+        # invalidates the anchor and stacks a fresh copy of the menu on
+        # every keypress. Below this the numbered menu is not a
+        # compromise, it is the only one of the two that works.
+        #
+        # The header is the tallest part and varies by caller, so this is
+        # deliberately generous rather than exact. Show-Picker still
+        # sizes itself from the real window every frame.
+        if ($h.WindowSize.Height -lt 26) { return $false }
         return $true
     } catch { return $false }
 }
@@ -1026,6 +1038,15 @@ function Show-Picker {
         # Add "tick everything" and "skip everything" rows, and say in the
         # header that leaving it all on is the recommendation.
         [switch]$ShowAllNone,
+        [string]$AllOnLabel = 'Turn every option ON  (recommended)',
+        [string]$SkipLabel  = 'SKIP ALL  (turn every option off)',
+        [string]$AllOnDetail = 'Switch every option back on.',
+        [string]$SkipDetail  = 'Switch every option off, including saving a report.',
+        # Make the skip row PROCEED rather than just untick. Without it,
+        # "skip all" leaves you sitting on a menu with nothing selected,
+        # which is a second decision to make about a decision you already
+        # made.
+        [switch]$SkipProceeds,
         # Allow proceeding with nothing ticked. The repair menu must not:
         # "START" with no repairs selected is always a mistake. The report
         # menu must: everything unticked plus "save a file" unticked is a
@@ -1073,18 +1094,41 @@ function Show-Picker {
     # Every line is PADDED to the full width. That is what makes drawing
     # over the previous frame safe without clearing first: a short line
     # would otherwise leave the tail of whatever was there before.
-    $HeaderLines = 9
-    $hintText = if ($Hint) { $Hint } else { '    Move to ' + $StartLabel + ' and press ENTER to begin.  Esc quits.' }
+    # THE HEADER IS BUILT AS DATA, AND ITS HEIGHT IS MEASURED.
+    #
+    # $HeaderLines used to be the literal 9, hand-counted to match the
+    # nine Paint calls below it. That is the same class of defect as the
+    # hand-counted box padding this file already has a function to
+    # prevent, and it detonated the moment the header grew: the layout
+    # below sizes the option viewport by subtracting the header from the
+    # window height, so an undercount makes the frame taller than the
+    # window, the console scrolls, the anchor is a row that has moved,
+    # and every keypress paints a fresh copy of the whole menu below the
+    # last one. Which is exactly the stacked-duplicates bug the comments
+    # above claim to have fixed, coming back.
+    #
+    # Derived from the array, so it cannot disagree with what is drawn.
+    $headerText = @(
+        ''
+        '   =========================================='
+        "    $Title"
+        "    $env:COMPUTERNAME"
+        '   =========================================='
+        ''
+        '    Up and Down to move.  ENTER switches an option on or off.'
+    )
+    if ($Hint) { foreach ($h in @($Hint)) { $headerText += $h } }
+    else { $headerText += ('    Move to ' + $StartLabel + ' and press ENTER to begin.  Esc quits.') }
+    $headerText += ''
+
+    $headerColour = @('Gray','Cyan','Cyan','DarkGray','Cyan','Gray') +
+                    @('DarkGray') * ($headerText.Count - 6)
+    $HeaderLines = $headerText.Count
+
     $drawHeader = {
-        Paint (''.PadRight($width))
-        Paint ('   =========================================='.PadRight($width)) 'Cyan'
-        Paint ("    $Title".PadRight($width)) 'Cyan'
-        Paint ("    $env:COMPUTERNAME".PadRight($width)) 'DarkGray'
-        Paint ('   =========================================='.PadRight($width)) 'Cyan'
-        Paint (''.PadRight($width))
-        Paint ('    Up and Down to move.  ENTER switches an option on or off.'.PadRight($width)) 'DarkGray'
-        Paint ($hintText.PadRight($width)) 'DarkGray'
-        Paint (''.PadRight($width))
+        for ($hn = 0; $hn -lt $headerText.Count; $hn++) {
+            Paint ($headerText[$hn].PadRight($width)) $headerColour[$hn]
+        }
     }
 
     # Clear ONCE, here, so the first frame starts on a clean screen and
@@ -1122,11 +1166,37 @@ function Show-Picker {
         #      can ever scroll.
         $vFirst = 0
         $vCount = $rows.Count
+        $detailBody = 6
         if ($paint) {
-            $detailLines = 10                      # blank, rule, 6 detail, rule, summary
-            $chrome      = 2                       # the "more above/below" markers
-            $avail = $Host.UI.RawUI.WindowSize.Height - $HeaderLines - $detailLines - $chrome - 2
-            $vCount = [Math]::Max(5, [Math]::Min($rows.Count, $avail))
+            # THE FRAME MUST FIT THE WINDOW. Everything else here depends
+            # on it: the anchor is the top of the visible window, and it
+            # is only still valid on the next keypress if nothing
+            # scrolled in between.
+            #
+            # The old sum was `Max(5, ...)`, which is a FLOOR, and a
+            # floor is the one thing this calculation must not have. The
+            # fixed chrome alone (header, two markers, the detail pane)
+            # is over twenty rows, so on any window shorter than about
+            # 28 the floor forced five option rows on top of a frame
+            # that already did not fit, and the console scrolled on
+            # every single repaint.
+            #
+            # Now the detail pane gives up its own rows first, and the
+            # option list takes whatever is genuinely left. Nothing is
+            # ever forced.
+            $wh          = $Host.UI.RawUI.WindowSize.Height
+            $markers     = 2                      # "more above" / "more below"
+            $detailFixed = 4                      # blank, rule, rule, summary
+            # One spare row: the last line of the frame still ends a line,
+            # so a frame exactly filling the window scrolls it by one.
+            $budget = $wh - $HeaderLines - $markers - $detailFixed - 1
+
+            # Shrink the detail pane before shrinking the list. Losing a
+            # line of description is a smaller loss than losing an option.
+            while ($detailBody -gt 2 -and ($detailBody + 3) -gt $budget) { $detailBody-- }
+
+            $avail  = $budget - $detailBody
+            $vCount = [Math]::Min($rows.Count, [Math]::Max(1, $avail))
             if ($vCount -lt $rows.Count) {
                 $vFirst = $i - [int]($vCount / 2)
                 if ($vFirst -lt 0) { $vFirst = 0 }
@@ -1155,7 +1225,7 @@ function Show-Picker {
                 if ($sel) { Emit $txt.PadRight($width) 'White' } else { Emit $txt.PadRight($width) 'DarkCyan' }
             }
             elseif ($kind -eq 'alloff') {
-                $txt = "$cur" + 'SKIP ALL  (turn every option off)'
+                $txt = "$cur" + $SkipLabel
                 if ($sel) { Emit $txt.PadRight($width) 'White' } else { Emit $txt.PadRight($width) 'DarkCyan' }
             }
             elseif ($kind -eq 'start') {
@@ -1208,13 +1278,13 @@ function Show-Picker {
                 }
                 $detail += (Wrap $t.Desc ($width - 8))
             } elseif ($rows[$i].Kind -eq 'allon') {
-                $detail += 'Switch every option back on.'
+                $detail += $AllOnDetail
                 $detail += ''
-                $detail += (Wrap 'This is the recommended setting. Everything here is read only and the whole run takes well under two minutes, so the cost of leaving it all on is small and the cost of having skipped the one check that mattered is finding out later.' ($width - 8))
+                $detail += (Wrap 'Recommended. Everything here only reads, the whole run is well under two minutes, and the cost of having skipped the one check that mattered is finding out later.' ($width - 8))
             } elseif ($rows[$i].Kind -eq 'alloff') {
-                $detail += 'Switch every option off, including saving a report.'
+                $detail += $SkipDetail
                 $detail += ''
-                $detail += (Wrap 'Then tick just the one or two you actually want, rather than unticking nine. Useful for "only tell me what this machine is", or for looking at a PC and deliberately writing nothing to disk.' ($width - 8))
+                $detail += (Wrap 'Nothing is examined and no file is written.' ($width - 8))
             } elseif ($rows[$i].Kind -eq 'start') {
                 $detail += $(if ($ShowTime) { 'Begin. Anything marked CHANGES offers a restore point first.' }
                              else           { 'Begin with the options ticked above.' })
@@ -1222,7 +1292,7 @@ function Show-Picker {
             } elseif ($rows[$i].Kind -eq 'cancel') {
                 $detail += 'Close without touching this computer.'
             }
-            for ($d = 0; $d -lt 6; $d++) {
+            for ($d = 0; $d -lt $detailBody; $d++) {
                 $line = if ($d -lt $detail.Count) { '      ' + $detail[$d] } else { '' }
                 if ($line.Length -gt $width) { $line = $line.Substring(0, $width) }
                 Paint $line.PadRight($width) $(if ($d -eq 0) { 'White' } else { 'DarkGray' })
@@ -1293,7 +1363,14 @@ function Show-Picker {
                 switch ($rows[$i].Kind) {
                     'task'   { $rows[$i].Task.On = -not $rows[$i].Task.On }
                     'allon'  { foreach ($t in $Items) { $t.On = $true } }
-                    'alloff' { foreach ($t in $Items) { $t.On = $false } }
+                    'alloff' {
+                        foreach ($t in $Items) { $t.On = $false }
+                        # Proceed straight away when the caller says so.
+                        # For the report that means "skip the report and
+                        # go to the repairs", which is one decision, not
+                        # untick-everything-then-separately-confirm.
+                        if ($SkipProceeds) { return $true }
+                    }
                     'start'  { if ($anyOn -or $AllowEmpty) { return $true } }
                     'cancel' { return $false }
                 }
