@@ -205,14 +205,14 @@ if ($ok -ne $true) {
 # GitHub names the extracted folder <repo>-<ref>, but a ref with a slash
 # in it becomes something else, so it is found rather than assumed.
 $root = @(Get-ChildItem $work -Directory -ErrorAction SilentlyContinue |
-          Where-Object { Test-Path (Join-Path $_.FullName 'Tools\Tools\HealthReport\Install.ps1') } |
+          Where-Object { Test-Path (Join-Path $_.FullName 'Tools\HealthReport\Install.ps1') } |
           Select-Object -First 1)
 if (-not $root.Count) {
     Say-Fail 'the download unpacked, but Tools\HealthReport\Install.ps1 is not in it'
     Say-Info "Look in $work yourself. Nothing was installed."
     exit 1
 }
-$installer = Join-Path $root[0].FullName 'Tools\Tools\HealthReport\Install.ps1'
+$installer = Join-Path $root[0].FullName 'Tools\HealthReport\Install.ps1'
 Say-Good 'toolkit unpacked'
 
 # --- Hand over --------------------------------------------------------
