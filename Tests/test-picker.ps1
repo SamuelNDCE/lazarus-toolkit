@@ -216,13 +216,17 @@ Check 'the redraw does not anchor to WindowPosition' `
       (-not ($common -match 'CursorPosition\s*=[\s\S]{0,120}WindowPosition')) `
       'an absolute row is meaningless when the buffer is 9001 and the window is 30'
 
-Check 'the redraw steps back with a relative ESC[nF' `
-      ($common -match '\[\$\(\$Script:LastFrameLines\)F') `
-      'relative movement is the only anchor that survives a scrolling viewport'
+Check 'the redraw homes the cursor absolutely with ESC[H' `
+      ($common -match "\[char\]27\)\[H") `
+      'anything that calculates where the last frame went can be wrong, and was, four times'
 
-Check 'LastFrameLines is reset when the picker opens' `
-      ($common -match '\$Script:LastFrameLines = 0') `
-      'a leftover value would step up into whatever was on screen before'
+Check 'and erases below the frame with ESC[0J' `
+      ($common -match "\[char\]27\)\[0J") `
+      'a shorter frame would otherwise leave the previous one tail showing'
+
+Check 'nothing is remembered between frames' `
+      (-not ($common -match 'LastFrameLines')) `
+      'state that persists between frames is state that can drift'
 
 Check 'the no-ANSI path clears instead of appending' `
       ($common -match '(?s)No ANSI.*?Clear-Host') `

@@ -28,7 +28,7 @@ $Script:CanAnimate = -not [Console]::IsOutputRedirected
 #  Common.ps1 is dot-sourced by every script here, so this is the one
 #  definition. Bump it whenever the tool changes.
 # ---------------------------------------------------------------------
-$Script:ToolVersion = '1.3.0'
+$Script:ToolVersion = '1.4.0'
 
 
 # ---------------------------------------------------------------------
@@ -1171,11 +1171,9 @@ function Show-Picker {
     # appear to jump on every keypress, because for one frame the screen
     # was genuinely empty.
     #
-    # LastFrameLines is reset with it. It is how far the cursor has to
-    # travel back up to repaint over the previous frame, and a value
-    # left over from an earlier picker would step into whatever is above
-    # this one.
-    $Script:LastFrameLines = 0
+    # Nothing is remembered between frames any more. The redraw homes
+    # the cursor absolutely with ESC[H, so there is no counter to reset
+    # and no state that can carry over from an earlier picker.
     if (-not $silent) { Clear-Host }
 
     while ($true) {
@@ -1413,23 +1411,42 @@ function Show-Picker {
         # viewport position and any scrolling in between are all
         # irrelevant.
         if ($Script:VtEnabled) {
+            # HOME, DRAW, ERASE BELOW. The redraw every full-screen
+            # terminal program uses, and the only one here that has ever
+            # been correct.
+            #
+            # Four attempts before this tried to work out WHERE the last
+            # frame went and put the cursor back there: a remembered
+            # row, then the top of the visible window, then stepping
+            # back N lines with ESC[nF. Every one of them was a
+            # calculation that could be wrong, and every one of them
+            # was, in a different way. The last was verified against a
+            # captured escape stream that was provably correct, and it
+            # still stacked on a real terminal: ANSI on, window 120x40,
+            # frame 39 lines, fitting, and still stacking.
+            #
+            # So it no longer calculates anything. ESC[H puts the cursor
+            # at the top left of the screen, full stop. There is nothing
+            # to remember, nothing to count, and no state that can drift
+            # between frames, so no arithmetic anywhere can put a frame
+            # in the wrong place.
+            #
+            # ESC[0J then erases from the end of the frame downwards, so
+            # a frame that is shorter than the one before it cannot
+            # leave that frame's tail on screen underneath.
+            #
+            # Still ONE write, so it does not flicker: the terminal
+            # repaints the whole thing as a single unit.
             $sb = New-Object System.Text.StringBuilder
             [void]$sb.Append("$([char]27)[?25l")          # hide the cursor
-            # Step back over the frame just drawn. Skipped on the first
-            # pass, when there is nothing above us yet.
-            if ($Script:LastFrameLines -gt 0) {
-                [void]$sb.Append("$([char]27)[$($Script:LastFrameLines)F")
-            }
+            [void]$sb.Append("$([char]27)[H")             # home, absolutely
             for ($n = 0; $n -lt $frame.Count; $n++) {
                 [void]$sb.Append((Get-AnsiLine $frame[$n].T $frame[$n].C))
                 if ($n -lt $frame.Count - 1) { [void]$sb.Append("`n") }
             }
+            [void]$sb.Append("$([char]27)[0J")            # erase anything below
             [void]$sb.Append("$([char]27)[?25h")          # and put it back
             [Console]::Write($sb.ToString())
-            # Every line but the last ended in a newline, so the cursor
-            # sits on the final line: that is frame.Count - 1 lines to
-            # come back up next time.
-            $Script:LastFrameLines = $frame.Count - 1
         } else {
             # No ANSI. Clear and redraw, which flickers, but a menu that
             # flickers is a menu you can use. Appending without clearing
