@@ -1058,9 +1058,15 @@ function Show-Picker {
         # menu must: everything unticked plus "save a file" unticked is a
         # legitimate choice meaning "show me the machine, save nothing".
         [switch]$AllowEmpty,
-        [int[]]$TestKeys
+        [int[]]$TestKeys,
+        # Drive it with scripted keys but STILL PAINT, so the real
+        # escape sequences can be captured and inspected. -TestKeys
+        # alone skips drawing entirely, which is why every test written
+        # against it was blind to the redraw itself: they proved the
+        # navigation and could not see the one thing that was broken.
+        [switch]$PaintDuringTest
     )
-    $silent = [bool]$TestKeys
+    $silent = [bool]$TestKeys -and -not $PaintDuringTest
     $kp = 0
 
     $rows = @()
@@ -1080,7 +1086,10 @@ function Show-Picker {
     $rows += [pscustomobject]@{ Kind = 'cancel'; Task = $null }
 
     $i = 0
-    $width = if ($silent) { 78 } else { [Math]::Min(78, $Host.UI.RawUI.WindowSize.Width - 2) }
+    $width = 78
+    if (-not $silent) {
+        try { $width = [Math]::Min(78, $Host.UI.RawUI.WindowSize.Width - 2) } catch { $width = 78 }
+    }
 
     # THE HEADER IS PART OF EVERY FRAME.
     #
@@ -1431,7 +1440,10 @@ function Show-Picker {
       }
 
       $anyOn = @($Items | Where-Object On).Count
-      if ($silent) {
+      # Keyed on $TestKeys, not $silent. With -PaintDuringTest the two
+      # differ: it paints like a real run but must still take scripted
+      # keys rather than blocking on ReadKey.
+      if ($TestKeys) {
           if ($kp -ge $TestKeys.Count) { return $false }
           $code = $TestKeys[$kp]; $kp++
       } else {
