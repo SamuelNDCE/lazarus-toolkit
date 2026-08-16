@@ -32,10 +32,10 @@ shell:
 ```powershell
 git clone https://github.com/SamuelNDCE/lazarus-toolkit.git
 cd lazarus-toolkit
-.\Tools\HealthReport\Install.bat
+.\Tools\Install.bat
 ```
 
-Or do not install it at all. **Copy `Tools\HealthReport\` anywhere and run `Health-Report.bat`.**
+Or do not install it at all. **Copy `Tools\` anywhere and run `Health-Report.bat`.**
 It has no installer to depend on, no registry keys it needs, and no path baked into it. The
 installer exists to make it convenient, never to make it work.
 
@@ -169,8 +169,8 @@ Finish a job and the evidence is scattered across a dozen directories on a PC yo
 back.
 
 ```powershell
-.\Tools\HealthReport\Collect-ToolLogs.ps1 -WhatIfOnly   # show what it would take
-.\Tools\HealthReport\Collect-ToolLogs.ps1               # copy it
+.\Tools\Collect-ToolLogs.ps1 -WhatIfOnly   # show what it would take
+.\Tools\Collect-ToolLogs.ps1               # copy it
 ```
 
 It sweeps 25 known locations:
@@ -199,9 +199,9 @@ was. Files over 20 MB are skipped with the size and the reason stated.
 ## Clearing the saved reports
 
 ```powershell
-.\Tools\HealthReport\Clear-Reports.ps1              # dry run, grouped by machine
-.\Tools\HealthReport\Clear-Reports.ps1 -Confirm     # do it
-.\Tools\HealthReport\Clear-Reports.ps1 -Keep 'MYPC' # spare one machine's records
+.\Tools\Clear-Reports.ps1              # dry run, grouped by machine
+.\Tools\Clear-Reports.ps1 -Confirm     # do it
+.\Tools\Clear-Reports.ps1 -Keep 'MYPC' # spare one machine's records
 ```
 
 ## Uninstalling
@@ -387,7 +387,7 @@ The tick means it has been exercised on a real machine, not merely written.
 
 ```powershell
 .\Tests\Run-Checks.ps1                                     # this checkout
-.\Tests\Run-Checks.ps1 -Root D:\Tools\HealthReport         # a deployed stick
+.\Tests\Run-Checks.ps1 -Root D:\Tools         # a deployed stick
 .\Tests\Test-StickReady.ps1 -Drive D:                      # before unplugging
 ```
 

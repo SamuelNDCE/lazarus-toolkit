@@ -6,7 +6,7 @@
 # real definitions out of the real file by AST and calls them, so a
 # rename, a signature change or a bad return value cannot hide.
 param([string]$Root)
-if (-not $Root) { $Root = Join-Path (Split-Path $PSScriptRoot -Parent) 'Tools\HealthReport' }
+if (-not $Root) { $Root = Join-Path (Split-Path $PSScriptRoot -Parent) 'Tools' }
 $file = Join-Path $Root 'Repair-Health.ps1'
 $ast  = [System.Management.Automation.Language.Parser]::ParseFile($file, [ref]$null, [ref]$null)
 

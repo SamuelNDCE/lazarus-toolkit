@@ -13,7 +13,7 @@
  WHAT IT DOES
 
  Downloads this repository as a zip, unpacks it to a temporary folder,
- and runs Tools\HealthReport\Install.ps1 from it. That installer is the thing
+ and runs Tools\Install.ps1 from it. That installer is the thing
  that does the real work; this file only gets it onto the machine. Then
  it deletes the temporary folder.
 
@@ -24,7 +24,7 @@
  elevates itself when it runs, which is a different thing.
 
  If you would rather see the code before running it, clone the repo and
- run Tools\HealthReport\Install.bat instead. That is the same install with no
+ run Tools\Install.bat instead. That is the same install with no
  download step, and it is the honest recommendation: piping a URL into a
  shell is convenient and it is also trusting a web server with your
  machine.
@@ -176,7 +176,7 @@ $ok = Invoke-Watched -Label 'downloading the toolkit' -TimeoutSeconds 180 -Argum
 if ($ok -ne $true) {
     Say-Fail "download failed: $(if ($ok) { $ok } else { 'no response' })"
     Say-Info 'Check the machine is online, then try again. To install without'
-    Say-Info 'a download, clone the repo and run Tools\HealthReport\Install.bat.'
+    Say-Info 'a download, clone the repo and run Tools\Install.bat.'
     Remove-Item $work -Recurse -Force -ErrorAction SilentlyContinue
     exit 1
 }
@@ -205,14 +205,14 @@ if ($ok -ne $true) {
 # GitHub names the extracted folder <repo>-<ref>, but a ref with a slash
 # in it becomes something else, so it is found rather than assumed.
 $root = @(Get-ChildItem $work -Directory -ErrorAction SilentlyContinue |
-          Where-Object { Test-Path (Join-Path $_.FullName 'Tools\HealthReport\Install.ps1') } |
+          Where-Object { Test-Path (Join-Path $_.FullName 'Tools\Install.ps1') } |
           Select-Object -First 1)
 if (-not $root.Count) {
-    Say-Fail 'the download unpacked, but Tools\HealthReport\Install.ps1 is not in it'
+    Say-Fail 'the download unpacked, but Tools\Install.ps1 is not in it'
     Say-Info "Look in $work yourself. Nothing was installed."
     exit 1
 }
-$installer = Join-Path $root[0].FullName 'Tools\HealthReport\Install.ps1'
+$installer = Join-Path $root[0].FullName 'Tools\Install.ps1'
 Say-Good 'toolkit unpacked'
 
 # --- Hand over --------------------------------------------------------

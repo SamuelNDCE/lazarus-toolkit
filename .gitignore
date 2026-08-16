@@ -30,8 +30,14 @@ repairlog-*.txt
 # a file if a PARENT DIRECTORY of it is excluded, so a bare `Tools/` would
 # make `!Tools/HealthReport/` do nothing at all and silently untrack the
 # main tool the moment it moved in here.
+# Tools/ holds BOTH our own scripts and the third-party utilities that
+# are never committed. So the folder CONTENTS are excluded and our own
+# files re-included by extension. A bare `Tools/` would make these
+# negations do nothing: git cannot re-include a file if a PARENT
+# DIRECTORY of it is excluded.
 Tools/*
-!Tools/HealthReport/
+!Tools/*.ps1
+!Tools/*.bat
 ISO/
 Setup/
 *.iso

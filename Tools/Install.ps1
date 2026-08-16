@@ -4,7 +4,7 @@
 
      .\Install.ps1               # install for the current user
      .\Install.ps1 -WhatIfOnly   # say what it WOULD do, touch nothing
-     .\Install.ps1 -Destination 'D:\Tools\HealthReport'
+     .\Install.ps1 -Destination 'D:\Tools'
 
  WHY THIS EXISTS
 
@@ -271,7 +271,7 @@ foreach ($p in $payload) {
 }
 if ($missingRequired.Count) {
     Say-Fail "cannot install: missing $($missingRequired -join ', ')"
-    Say-Info 'Run this from inside the HealthReport folder of a complete checkout.'
+    Say-Info 'Run this from inside the Tools folder of a complete checkout.'
     exit 1
 }
 Say-Good 'all required files present'
@@ -349,7 +349,7 @@ if (-not $WhatIfOnly) {
 # --- 5. Icon ----------------------------------------------------------
 $icoPath = Join-Path $Destination 'healthreport.ico'
 # Icons\ sits at the REPO ROOT, and this file now lives two levels down
-# at Tools\HealthReport\. It was one level down before, so a hardcoded
+# at Tools\. It was one level down before, so a hardcoded
 # "parent + Icons" silently started resolving to Tools\Icons, which does
 # not exist. The icon is optional, so that failure would have been
 # invisible: shortcuts would just quietly have gone back to the default

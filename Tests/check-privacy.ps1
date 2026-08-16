@@ -29,7 +29,7 @@ param([string]$Root)
       original leak with no list at all, because "<Name>'s laptop"
       matches it and "chkdsk's" does not.
 #>
-if (-not $Root) { $Root = Join-Path (Split-Path $PSScriptRoot -Parent) 'Tools\HealthReport' }
+if (-not $Root) { $Root = Join-Path (Split-Path $PSScriptRoot -Parent) 'Tools' }
 $repo = Split-Path $PSScriptRoot -Parent
 
 # This file names patterns for a living, so scanning it finds only itself.

@@ -117,7 +117,7 @@ $sources = if ($SourceList) { $SourceList } else { @(
 
     # --- everything else on the stick --------------------------------
     @{ Tool = 'OCCT';                 Path = "$env:USERPROFILE\Documents\OCCT";         Filter = '*';     Recurse = $true; Note = 'stress test results' }
-    @{ Tool = 'Win11Debloat';         Path = (Join-Path (Split-Path $PSScriptRoot -Parent) 'Win11Debloat\Logs'); Filter = '*'; Note = 'what was removed' }
+    @{ Tool = 'Win11Debloat';         Path = (Join-Path $PSScriptRoot 'Win11Debloat\Logs'); Filter = '*'; Note = 'what was removed' }
     # Two locations for the same reason as ADWCleaner: it has used both.
     @{ Tool = 'BCUninstaller';        Path = "$env:LOCALAPPDATA\BCUninstaller";         Filter = '*.log'; Note = 'bulk uninstall record' }
     @{ Tool = 'BCUninstaller (user)'; Path = "$env:APPDATA\BCUninstaller";              Filter = '*.log'; Note = 'bulk uninstall record' }

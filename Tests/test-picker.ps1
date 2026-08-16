@@ -19,7 +19,7 @@ param([string]$Root)
 
  Virtual key codes: 38 up, 40 down, 13 enter, 27 esc, 32 space.
 #>
-if (-not $Root) { $Root = Join-Path (Split-Path $PSScriptRoot -Parent) 'Tools\HealthReport' }
+if (-not $Root) { $Root = Join-Path (Split-Path $PSScriptRoot -Parent) 'Tools' }
 . (Join-Path $Root 'Common.ps1')
 
 $fail = 0

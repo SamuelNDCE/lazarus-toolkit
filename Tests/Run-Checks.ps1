@@ -28,14 +28,14 @@
 #>
 param(
     # Defaults to the toolkit next to this script. Point it at a USB
-    # stick to check a deployed copy: -Root D:\Tools\HealthReport
+    # stick to check a deployed copy: -Root D:\Tools
     [string]$Root,
     [switch]$SkipSelfTest
 )
 
 $ErrorActionPreference = 'Stop'
 $repo = Split-Path $PSScriptRoot -Parent
-if (-not $Root) { $Root = Join-Path $repo 'Tools\HealthReport' }
+if (-not $Root) { $Root = Join-Path $repo 'Tools' }
 
 $fail = 0
 function Check($name, $ok, $detail = '') {

@@ -5,7 +5,7 @@
 # version of this test re-implemented Show-Box's arithmetic and compared
 # that against itself, which would have passed happily while the shipped
 # function stayed wrong. A test must exercise the thing, not a copy.
-. (Join-Path (Split-Path $PSScriptRoot -Parent) 'Tools\HealthReport\Common.ps1')
+. (Join-Path (Split-Path $PSScriptRoot -Parent) 'Tools\Common.ps1')
 
 $cases = @(
     ,@('DOWNLOADING AND INSTALLING DRIVERS. DO NOT CLOSE THIS.',
