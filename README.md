@@ -18,13 +18,45 @@ computer.
 
 # Health Report and Repair
 
+**What it does, in one screen:**
+
+- **Tells you what the machine is** — make, model, serial, BIOS version *and its age*, CPU, GPU,
+  motherboard, Windows edition. Reads from the registry, so it works even when WMI is broken.
+- **Tells you what is wrong with it** — battery wear, SMART disk health, broken drivers *ranked
+  CRITICAL to LOW*, activation channel, BitLocker, firewall, crashes, failed updates.
+- **Gives you a verdict** — ready to hand over, usable with notes, or not ready.
+- **Then offers to fix it** — 13 repairs using Windows' own tools, each with a time estimate,
+  each off by default, each offering a restore point first.
+- **Collects every log the job left behind** — 25 locations across Windows, your repairs and any
+  antivirus tools that ran, into one dated folder.
+- **Never sends anything anywhere.** See below.
+
+It is deliberately not a "PC optimiser". There is no registry cleaner, no bundled driver updater,
+no paid tier and nothing downloaded at runtime. Every finding comes from something Windows already
+recorded, and every repair is a command you could have typed yourself if you remembered it.
+
+---
+
 **Install it in one line. It needs nothing else from this repo.**
 
 ```powershell
 irm https://raw.githubusercontent.com/SamuelNDCE/lazarus-toolkit/main/install.ps1 | iex
 ```
 
-Then type `health-report` in any terminal, or search the Start menu for "Health Report".
+That is the whole install. It takes a few seconds and asks nothing.
+
+**Afterwards you can start it three ways**, whichever you find first:
+
+| | |
+|---|---|
+| **Start menu** | Type "Health Report" |
+| **Desktop** | The Health Report and Repair icon |
+| **Terminal** | Type `health-report` |
+
+**It will ask for administrator when it runs. Say yes.** Battery wear, SMART disk data, Windows
+activation and BitLocker cannot be read without it, and every repair needs it. Installing needs no
+administrator at all: those are two different permissions, and the installer only ever asks for
+the smaller one.
 
 Prefer to read the code first, which is the honest recommendation for anything you pipe into a
 shell:
@@ -38,6 +70,40 @@ cd lazarus-toolkit
 Or do not install it at all. **Copy `Tools\` anywhere and run `Health-Report.bat`.**
 It has no installer to depend on, no registry keys it needs, and no path baked into it. The
 installer exists to make it convenient, never to make it work.
+
+## Your data never leaves your machine
+
+This is the short version, and it is checked rather than promised:
+
+- **No telemetry, no analytics, no accounts, no phone-home.** The report,
+  the log collector and the report cleaner contain **zero** network calls of any kind. Not
+  disabled by a setting, not off by default: absent from the code.
+- **Nothing is uploaded, ever.** Reports are written to the folder the tool runs from, on your
+  disk, and stay there until you delete them.
+- **You choose whether anything is written down at all.** Untick **SAVE A REPORT FILE** on the
+  first screen and the tool shows you everything and writes nothing.
+- **The only thing that touches the internet** is the optional *"Install driver updates from
+  Windows Update"* repair, which talks to Windows Update the same way Windows itself does. It is
+  off by default and you have to switch it on.
+- **The installer downloads once, from GitHub, and that is all.** After that the tool never
+  connects to anything.
+
+You can verify the first point in about five seconds:
+
+```powershell
+Select-String -Path .\Tools\*.ps1 -Pattern 'Invoke-WebRequest|Invoke-RestMethod|WebClient|DownloadFile|Send-MailMessage'
+```
+
+**That returns nothing at all.** The one downloader in this repo is the top-level `install.ps1`,
+which is the web installer and is not part of the tool: it fetches the toolkit once and then plays
+no further part. Nothing under `Tools\` can reach the network except the Windows Update repair.
+
+**A saved report does contain private information about the machine it ran on**: name, make,
+model, serial number, installed programs and event log entries. That is the point of it, and it
+is why it stays on your disk and why you can switch saving off. See
+[Where reports go](#where-reports-go-and-what-is-in-them).
+
+---
 
 **Requirements:** Windows 10 or 11 and Windows PowerShell 5.1, which is already on both. Nothing to
 download, no runtime, no dependencies.
@@ -213,7 +279,10 @@ was. Files over 20 MB are skipped with the size and the reason stated.
 
 ## Uninstalling
 
-Settings > Apps > Installed apps, or:
+**The normal way:** Windows Settings > Apps > Installed apps > Health Report and Repair >
+Uninstall. It is a normal Windows entry and behaves like one.
+
+**Or from a terminal**, which shows you exactly what would go before it goes:
 
 ```powershell
 .\Uninstall.ps1              # dry run, shows exactly what would go
@@ -221,9 +290,15 @@ Settings > Apps > Installed apps, or:
 .\Uninstall.ps1 -Confirm -RemoveReports
 ```
 
-**Saved reports are never deleted by an uninstall.** They are moved to `Documents\Lazarus Reports`
-and the new location is printed, because uninstalling the tool is not a statement about the
-records. `-RemoveReports` deletes them, and you have to ask separately.
+**Nothing is left behind, and nothing of yours is taken with it.**
+
+- The installer records every single file it wrote in `installed.json`, and the uninstaller
+  removes exactly that list. Anything else in the folder is left alone and named on screen.
+- **Your saved reports are never deleted.** They are moved to `Documents\Lazarus Reports` and the
+  new location is printed, because uninstalling a tool is not a statement about your records.
+  `-RemoveReports` deletes them, and you have to ask for that separately.
+- The PATH entry and the Add/Remove Programs entry are removed too. A dry run is the default, so
+  you always see the list before anything happens.
 
 The installer records everything it wrote in `installed.json`, and the uninstaller removes exactly
 that. Anything it does not recognise in the folder is left in place and named.
@@ -488,6 +563,19 @@ the glitch, not the cursor arithmetic.
 
 **`continue` inside a PowerShell `switch` exits the switch and falls through.** A switch IS a loop.
 That made every START, Cancel and spacer row draw a second empty `[ ]` underneath itself.
+
+**Clear the screen and draw it. Do not calculate where the last frame went.** The picker's
+redraw was "fixed" five times by working out where to put the cursor: a remembered row, the top of
+the visible window, stepping back N lines, then homing with ESC[H. Each was verified against a
+captured escape stream, each looked correct, and each still stacked copies of the menu on a real
+terminal. Clear-Host goes through the console API, depends on no escape sequence, no viewport
+position inside a 9999 row buffer and no count of anything, and worked first time. A menu that
+flickers is a menu you can use.
+
+**Verify on the console it runs on, not the one you are testing from.** All five of those captures
+were taken in a redirected shell, where VtEnabled and CanAnimate are both false. They proved the
+ANSI branch worked while the reported failure was somewhere else entirely. Tools\Show-ConsoleFacts.ps1
+exists so the real console can be asked instead of assumed.
 
 **Boxes size themselves.** Hand-counted padding drifted and left ragged edges.
 
