@@ -28,7 +28,7 @@ $Script:CanAnimate = -not [Console]::IsOutputRedirected
 #  Common.ps1 is dot-sourced by every script here, so this is the one
 #  definition. Bump it whenever the tool changes.
 # ---------------------------------------------------------------------
-$Script:ToolVersion = '1.4.0'
+$Script:ToolVersion = '1.5.0'
 
 
 # ---------------------------------------------------------------------
@@ -1437,14 +1437,33 @@ function Show-Picker {
             #
             # Still ONE write, so it does not flicker: the terminal
             # repaints the whole thing as a single unit.
+            # CLEAR THE SCREEN, THEN DRAW IT. Every frame. No exceptions.
+            #
+            # Five attempts tried to be cleverer than this: a remembered
+            # row, the top of the visible window, ESC[nF to step back,
+            # then ESC[H to home. Each was verified against a captured
+            # escape stream, each looked right, and each still stacked
+            # copies of the menu on the machine it actually runs on.
+            #
+            # Clear-Host goes through the console API rather than ANSI,
+            # so it does not depend on the terminal honouring an escape
+            # sequence, on where the viewport happens to be inside a
+            # 9999 row buffer, or on any count of how tall the last
+            # frame was. There is no state and nothing to get wrong.
+            #
+            # The cost is a flicker, and the comments above once argued
+            # against exactly that. They were wrong about the trade: a
+            # menu that flickers is a menu you can use, and five rounds
+            # of a menu that stacks is not. The frame is still written
+            # in ONE call afterwards, so the flicker is a single repaint
+            # rather than the menu visibly rebuilding itself.
+            Clear-Host
             $sb = New-Object System.Text.StringBuilder
             [void]$sb.Append("$([char]27)[?25l")          # hide the cursor
-            [void]$sb.Append("$([char]27)[H")             # home, absolutely
             for ($n = 0; $n -lt $frame.Count; $n++) {
                 [void]$sb.Append((Get-AnsiLine $frame[$n].T $frame[$n].C))
                 if ($n -lt $frame.Count - 1) { [void]$sb.Append("`n") }
             }
-            [void]$sb.Append("$([char]27)[0J")            # erase anything below
             [void]$sb.Append("$([char]27)[?25h")          # and put it back
             [Console]::Write($sb.ToString())
         } else {

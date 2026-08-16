@@ -216,13 +216,18 @@ Check 'the redraw does not anchor to WindowPosition' `
       (-not ($common -match 'CursorPosition\s*=[\s\S]{0,120}WindowPosition')) `
       'an absolute row is meaningless when the buffer is 9001 and the window is 30'
 
-Check 'the redraw homes the cursor absolutely with ESC[H' `
-      ($common -match "\[char\]27\)\[H") `
-      'anything that calculates where the last frame went can be wrong, and was, four times'
+# Clear-Host must drive BOTH redraw paths, not just the fallback: one
+# call to open the picker, one for the ANSI repaint, one for the
+# no-ANSI repaint.
+$clears = ([regex]::Matches($common, '(?m)^\s*Clear-Host\s*$')).Count
+Check 'the redraw clears the screen every frame, on both paths' ($clears -ge 3) `
+      "found $clears Clear-Host calls, expected at least 3"
 
-Check 'and erases below the frame with ESC[0J' `
-      ($common -match "\[char\]27\)\[0J") `
-      'a shorter frame would otherwise leave the previous one tail showing'
+# Nothing may POSITION the cursor. Every version of that calculation
+# has failed on a real terminal. Colour and cursor hide/show are fine.
+Check 'the redraw no longer homes or steps the cursor' `
+      (-not (($common -match '27\)\[H') -or ($common -match '27\)\[0J') -or ($common -match 'LastFrameLines'))) `
+      'a redraw that computes where the last frame went can be wrong, and was, five times'
 
 Check 'nothing is remembered between frames' `
       (-not ($common -match 'LastFrameLines')) `
