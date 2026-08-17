@@ -175,13 +175,6 @@ MALWARE & FORENSICS (10)
   TCPView            Every TCP/UDP connection and the process that
                      owns it. Answers "what is this phoning home to".
                      Opens a prompt with examples printed.
-  Ransomware         92 free decryptors, the offline No More Ransom
-  Decryptors         set plus two open-source additions. Emsisoft,
-                     Avast, Bitdefender, Kaspersky. Covers STOP/Djvu,
-                     Akira, Rhysida, BianLian, REvil, GandCrab,
-                     DarkSide, real WannaCry (wanakiwi) and more.
-                     IDENTIFY THE STRAIN FIRST. Full instructions in
-                     Tools\Decryptors\README.txt
 
 DRIVE HEALTH & RECOVERY (4)
   CrystalDiskInfo    Is this drive dying? One colour-coded verdict per
@@ -200,8 +193,7 @@ DRIVE HEALTH & RECOVERY (4)
                      so it cannot damage the pool. Freeware from
                      DiskInternals, signed, not open source.
 
-HARDWARE DIAGNOSTICS (4)
-  OCCT               CPU, GPU, RAM and PSU stress in one tool.
+HARDWARE DIAGNOSTICS (3)
   HWiNFO64           Most accurate sensor readout there is.
   CPU-Z              CPU, board, memory and SPD identification.
   GPU-Z              GPU identification, sensors, BIOS dump.
@@ -213,7 +205,7 @@ DRIVERS (3)
                                never deletes these and DriverStore grows
                                to many GB. Neither DDU nor Snappy does this.
 
-NETWORK & REMOTE (5)
+NETWORK & REMOTE (4)
   WinSCP             SFTP/SCP/FTP with a dual-pane GUI.
   WindTerm           SSH, SFTP, telnet and serial in one window, with
                      tabs and split panes. Replaced PuTTY.
@@ -221,25 +213,10 @@ NETWORK & REMOTE (5)
                      discovery tool here, and deliberately so: it
                      needs no driver installed on the machine you are
                      working on.
-  RustDesk           Remote support. Open source, no account.
   Firefox            A clean browser that runs off the stick, keeping
                      its profile here. For when the machine's own
                      browser is hijacked or broken and you still need
                      to fetch a driver. Leaves nothing on the host.
-
-SECURITY & CREDENTIALS (3)
-  NirLauncher        398 NirSoft utilities. Password and key recovery,
-                     browser forensics, network info, USB history.
-                     ANTIVIRUS WILL FLAG THESE. That is expected.
-                     Zip password if you re-download: nirsoft9876$
-  KeePassXC          Encrypted password database for client credentials.
-  Picocrypt          Encrypt a file before you carry it off site. Drag
-                     in, set a password, done. Replaced VeraCrypt on
-                     2026-08-11: VeraCrypt only opens TrueCrypt and
-                     VeraCrypt containers, which almost never turn up
-                     on a repair job, and it cost 67.8 MB against
-                     Picocrypt's 2.6 MB. If you DO meet a VeraCrypt
-                     volume, fetch VeraCrypt on the day.
 
 FILES & UTILITIES (10)
   Double Commander   Dual-pane file manager. Batch rename, folder sync
@@ -365,8 +342,10 @@ MALWARE TRIAGE  -  READ BEFORE TRUSTING A SCAN
   better and more visibly.
 
   IF IT IS RANSOMWARE: different procedure entirely. Pull the
-  network first, then read Tools\Decryptors\README.txt before
-  touching anything. Running the wrong decryptor can damage files.
+  network first and identify the strain before touching anything.
+  Running the wrong decryptor can damage files. The offline decryptor
+  set was REMOVED from this stick on 2026-08-17; fetch the right one
+  on the day from nomoreransom.org/en/decryption-tools.html
 
 ================================================================
 NAS AND HYPERVISOR WORK
@@ -417,12 +396,8 @@ LICENCES WORTH KNOWING  (fine for personal use, which is the case here)
                  client work needs the Supporter tier ($25-$500 by
                  staff size). Flagged in the launcher with a "licence"
                  tag. Verified 2026-08-11.
-  OCCT           Free Personal build; their site offers Purchase for more.
   Linux Reader   Freeware from DiskInternals. Free to use, but closed
                  source, and they sell a paid "VMFS Recovery" line.
-  Decryptors     All free from their vendors, no licence limit. Emsisoft
-                 note theirs are provided as-is with support only for
-                 paying customers.
 
   Everything else is either open source or free for any use.
 
@@ -439,8 +414,7 @@ VERSION STATUS  (checked 2026-08-11)
                      a repair job needs. 53 MB, 5000 rule files.
 
   CONFIRMED CURRENT against the vendor:
-    Ventoy 1.1.17, RustDesk 1.4.9, Notepad++ 8.9.7, Rufus 4.15,
-    KeePassXC 2.7.12, KVRT 20.0.14.0,
+    Ventoy 1.1.17, Notepad++ 8.9.7, Rufus 4.15, KVRT 20.0.14.0,
     Firefox 153.0.4, GSmartControl 2.0.2, System Informer
     3.2.25011.2103, VeraCrypt 1.26.29, WinSCP 6.5.6,
     GPU-Z 2.70.0, 7-Zip 26.02, CPU-Z 2.20, Angry IP Scanner 3.9.3,
@@ -456,14 +430,14 @@ VERSION STATUS  (checked 2026-08-11)
   SYSINTERNALS IS DELIBERATELY TRIMMED, do not re-extract the full
   suite. On 2026-08-11 the folder went from 166 files / 264.6 MB to
   154 files / 91.2 MB. Removed, with reasons:
-    RDCMan + RDCMan-x86   126.3 MB  RDP session manager. RustDesk and
-                                    WindTerm already cover remote work.
+    RDCMan + RDCMan-x86   126.3 MB  RDP session manager. WindTerm
+                                    already covers remote work.
     ZoomIt + ZoomIt64      23.2 MB  Presentation screen zoom. Not repair.
     Sysmon + Sysmon64       9.1 MB  A logging service you INSTALL, which
                                     is the opposite of a portable tool.
     ADInsight (+chm)        5.3 MB  Active Directory tracing.
     Bginfo + Bginfo64       4.7 MB  Desktop wallpaper info.
-    CPUSTRES x2             4.8 MB  CPU load generator. OCCT covers this.
+    CPUSTRES x2             4.8 MB  CPU load generator. Not diagnostic.
   Everything else in the suite is small and genuinely diagnostic, so
   it stays. Re-downloading SysinternalsSuite.zip undoes this trim.
 
@@ -483,8 +457,8 @@ VERSION STATUS  (checked 2026-08-11)
     Kaspersky Rescue Disk  no build date published
 
   UNSIGNED BINARIES (normal for these projects, just so you know):
-    7-Zip, HxD, Picocrypt, Angry IP Scanner,
-    BCUninstaller, Double Commander, WindTerm, Dism++
+    7-Zip, HxD, Angry IP Scanner, BCUninstaller,
+    Double Commander, WindTerm, Dism++
 
   Linux Reader is signed and the signature verifies (DiskInternals,
   Kyiv). The Windows 11 ISO carries Microsoft's own ISO9660
@@ -512,7 +486,7 @@ KNOWN GAPS
   now covers real WannaCry and hack-petya covers the original 2016
   Petya. CERBER remains uncovered and probably always will be: the
   only free decryptor ever made handled v1 and v2 and is now a dead
-  link. Full breakdown in Tools\Decryptors\README.txt.
+  link. The decryptor set was removed from this stick on 2026-08-17.
 
   WINDOWS 11 ISO IS BACK, re-added 2026-08-11 for a batch of laptop
   builds. VERIFIED, not just downloaded:
@@ -549,11 +523,12 @@ KEEPING IT CURRENT
 ================================================================
   Sysinternals   https://download.sysinternals.com/files/SysinternalsSuite.zip
   Most others    GitHub releases or the vendor site.
-  Decryptors     nomoreransom.org/en/decryption-tools.html
   ISOs           replace when you next need them, not on a schedule.
 
-  Hit REFRESH in the launcher after changing anything. If you add a
-  tool, drop a 32x32 PNG named after it into Icons\ and add a line
+  Hit REFRESH in the launcher after changing anything. Adding a tool
+  is one step now: drop the folder into Tools\ and press Refresh. The
+  launcher finds it and pulls its icon out of its own binary. Add a
+  line
   to the DATA table in Lazarus.hta.
 
   This stick exists because the previous one (MediCat v21.12) was

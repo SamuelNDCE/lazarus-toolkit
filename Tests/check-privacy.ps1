@@ -83,7 +83,37 @@ if ($reports.Count) {
 }
 
 # 6. Credentials. Kept for completeness; never the thing that leaked.
-$hits = @($files | Select-String -Pattern 'password\s*=\s*\S|api[_-]?key|secret\s*=\s*\S|token\s*=\s*\S|BEGIN (RSA|OPENSSH|EC|DSA) PRIVATE KEY|ghp_|gho_|github_pat_|xox[baprs]-|AKIA[0-9A-Z]{16}|discord\.com/api/webhooks' -ErrorAction SilentlyContinue)
+#
+# The '=' forms only. A real one got past this: Docs\README.txt carried
+#
+#     Zip password if you re-download: nirsoft9876$
+#
+# in a PUBLIC repo, for months. It is a vendor's own published archive
+# password rather than anything of ours, but the checker did not know
+# that and never got the chance to ask, because it was written with a
+# COLON and every pattern here demanded an equals sign.
+#
+# So the separator is now [:=] AND words are allowed between it and the
+# keyword. That second half is the part that actually mattered and the
+# part a first fix missed: "password if you re-download:" puts five
+# words between the two, so a pattern demanding the separator right
+# after the word still walked straight past the real leak.
+#
+# Prose like "set a password" and "password manager" is excluded below
+# rather than by making the pattern narrower again. A false positive
+# costs one line in an allowlist. A false negative costs a public
+# credential, which is what happened.
+$credPat = '(password|passphrase|passcode)[^:=\r\n]{0,40}[:=]\s*\S|api[_-]?key|secret\s*[:=]\s*\S|token\s*[:=]\s*\S|BEGIN (RSA|OPENSSH|EC|DSA) PRIVATE KEY|ghp_|gho_|github_pat_|xox[baprs]-|AKIA[0-9A-Z]{16}|discord\.com/api/webhooks|tskey-[a-zA-Z0-9]'
+# Two kinds of line are excluded. Ordinary prose about passwords, and
+# OTHER CHECKERS' PATTERN DEFINITIONS: Test-StickReady.ps1 hunts for
+# credentials too, so its own regex looks exactly like the thing it
+# hunts. A pattern is recognised by containing a regex whitespace
+# token, which no real credential ever does.
+$hits = @($files | Select-String -Pattern $credPat -ErrorAction SilentlyContinue |
+          Where-Object {
+              $_.Line -notmatch 'password database|password manager|password recovery|password-recovery|set a password|asks (for )?(the )?(two )?passwords?|two passwords' -and
+              $_.Line -notmatch '\\s\*'
+          })
 if ($hits.Count) { Bad 'something credential-shaped' $hits }
 
 # 7. THE BACKSTOP. Every capitalised possessive that is not a known

@@ -26,7 +26,7 @@ project exists and it is the thing to reach for first. One command, ninety secon
 whether the machine in front of you is worth keeping and what is broken. **It installs on its own
 in one line and needs nothing else from this repo.**
 
-**Around it sits the stick:** [35 utilities and 5 boot ISOs](#what-is-on-the-stick) behind a
+**Around it sits the stick:** [30 utilities and 5 boot ISOs](#what-is-on-the-stick) behind a
 launcher that groups them, searches them, and explains in a sentence what each one is for and when
 to reach for it. Almost all of them are portable and leave nothing behind. The few that do not are
 flagged in the launcher and in the table below.
@@ -37,6 +37,72 @@ no artwork to draw. See [Adding your own tools](#adding-your-own-tools).
 
 Every guard in this project exists because something went wrong on a real computer. The design
 notes at the bottom say which.
+
+---
+
+# Take as much or as little as you want
+
+**The three parts are independent.** Each one works on its own, and none of them needs the others.
+Most people want the first.
+
+| | You get | You do |
+|---|---|---|
+| **1. Health Report only** | The flagship tool. Diagnose and repair a PC using what Windows already has | Run one line. Nothing else is downloaded, ever |
+| **2. The launcher, and nothing in it** | The UI, the categories, the search, the admin toggle, the eject check | Clone the repo. Add whichever tools you actually want, one folder each |
+| **3. The full kit** | The launcher plus the 30 utilities and 5 boot ISOs listed below | Fetch each tool from its own publisher. Around 8 GB on a 32 GB stick |
+
+### 1. Just the health report
+
+The whole point of this option is that it is one line and it is finished:
+
+```powershell
+irm https://raw.githubusercontent.com/SamuelNDCE/lazarus-toolkit/main/install.ps1 | iex
+```
+
+No stick, no launcher, no third-party anything. It installs per-user, needs no administrator to
+install, and asks for administrator only when you run it. Full detail in
+[Health Report and Repair](#health-report-and-repair).
+
+### 2. Just the launcher, then add your own tools
+
+If you want the interface but not our opinion about which tools belong on it:
+
+```powershell
+git clone https://github.com/SamuelNDCE/lazarus-toolkit.git
+```
+
+**A fresh clone contains no third-party programs at all.** They are not ours to redistribute, so
+every entry shows greyed out as missing until you put something there. That is a working starting
+point rather than a broken one: **drop any tool into `Tools\`, press Refresh, and it appears**,
+launchable, with its own icon pulled out of its binary. See
+[Adding your own tools](#adding-your-own-tools).
+
+Health Report and Repair still works immediately in this mode, because it is ours and it is
+already in the clone.
+
+### 3. Only the few tools you actually use
+
+There is nothing to configure for this. The launcher lists what the table says should exist and
+greys out what is not there, so a stick with six tools on it is not a broken stick, it is a stick
+with six tools on it. Fetch the ones you want, ignore the rest, and delete an entry from `DATA` in
+`Lazarus.hta` if you would rather not see it greyed out at all.
+
+## What the whole kit can do
+
+Health Report answers "what is wrong with this machine". The rest of the stick is there for what
+you do next.
+
+| | |
+|---|---|
+| **Survey a machine you have never seen** | Make, model, serial, BIOS age, battery wear, SMART health, activation channel, BitLocker state, every driver ranked by severity, and a verdict |
+| **Repair Windows itself** | SFC, DISM, chkdsk, Windows Update repair, network stack reset, and the three temp folders Disk Cleanup does not touch |
+| **Find and remove malware** | Autostart persistence, live process inspection with VirusTotal, adware and browser hijacks, and a bootable scanner for anything that survives inside Windows |
+| **Strip a machine back** | Bloatware and Store apps, superseded driver packages, preinstalled junk on a new laptop, and the leftovers a vendor's uninstaller abandons |
+| **Install and update** | Driver updates through Windows Update, with a dry run first that tells you whether the machine can install anything at all |
+| **Recover data** | Deleted files carved by signature, ext4, ZFS, XFS, Btrfs and APFS volumes Windows cannot see, and raw disk and boot sector editing |
+| **Prove hardware is faulty** | Sensor readouts, graphics card identification and fake detection, and a bootable RAM test that runs with no OS holding memory |
+| **Work on a machine that will not boot** | Five boot ISOs: a Windows PE environment, an offline virus scanner, a Linux repair toolkit, a disk imager, and a memory tester |
+| **Get in and out cleanly** | A clean browser that inherits none of the host's settings, SSH and serial consoles, a subnet scanner, and an eject check that names whatever is still holding the drive |
 
 ---
 
@@ -382,7 +448,7 @@ with nothing downloaded.
 
 ## What is on the stick
 
-Thirty-five utilities and five boot ISOs, in the order the launcher shows them.
+Thirty utilities and five boot ISOs, in the order the launcher shows them.
 
 **The Notes column is the licence position**, because "free" and "free for paid work" are not the
 same thing and the difference matters if you charge for repairs. Full detail, with the wording each
@@ -399,7 +465,6 @@ vendor actually uses, is in [`Docs/LICENCES.txt`](Docs/LICENCES.txt).
 | **TCPView** | See what a process is talking to | Sysinternals, same terms |
 | **ADWCleaner** | Strip adware, toolbars and hijacked browsers | Free and portable |
 | **Activity Log** | What has been run on a machine, even with auditing off | Ours, Apache 2.0 |
-| **Ransomware Decryptors** | 92 offline decryptors, because a ransomed PC rarely has a browser | Four vendors, check the one you use |
 
 ### Drive health and recovery
 
@@ -416,7 +481,6 @@ vendor actually uses, is in [`Docs/LICENCES.txt`](Docs/LICENCES.txt).
 
 | Tool | What it is for | Notes |
 |---|---|---|
-| **OCCT** | Prove whether hardware is actually unstable | Free licence is **personal use only**. Paid work needs Premium |
 | **HWiNFO64** | The most complete and accurate sensor readout there is | Free for **non-commercial** use only |
 | **GPU-Z** | Identify and verify a graphics card, including fakes | Free commercially. Do not redistribute in a paid package |
 
@@ -434,15 +498,7 @@ vendor actually uses, is in [`Docs/LICENCES.txt`](Docs/LICENCES.txt).
 | **WinSCP** | Move files to and from Linux boxes | GPL-3.0 |
 | **WindTerm** | SSH, SFTP, telnet and serial in one window | Open source |
 | **Angry IP Scanner** | Sweep a subnet for live hosts, no driver to install | Open source |
-| **RustDesk** | Remote into a machine to help someone | Open source, self-hostable relay |
 | **Firefox** | A clean browser when the machine's own is hijacked | Distribute **unaltered** only |
-
-### Security and credentials
-
-| Tool | What it is for | Notes |
-|---|---|---|
-| **KeePassXC** | Carry client credentials safely instead of in a text file | Open source |
-| **Picocrypt** | Encrypt recovered data before it leaves the site | Open source, single 2.6 MB binary |
 
 ### Files and utilities
 
@@ -746,13 +802,18 @@ matters is about *use*, not redistribution: a few of these tools are free for pe
 for paid work, which is a real distinction if you charge for repairs.
 
 **[`Docs/LICENCES.txt`](Docs/LICENCES.txt) has the detail**, quoting the wording each vendor
-actually uses. The three worth knowing without opening it:
+actually uses. The two worth knowing without opening it:
 
 | Tool | The catch |
 |---|---|
-| **OCCT** | Free licence is personal use only, explicitly excluding "any commercial purposes in any form whatsoever" |
 | **Sysinternals** | Yours to use on your own devices. Not to publish, lend, or transfer to anyone else |
 | **Malwarebytes** | The free product is not licensed for threat removal on business devices |
+
+There was a third, and it is the reason this section is worth reading. **OCCT's free licence is
+personal use only**, excluding "any commercial purposes in any form whatsoever", with prosecution
+named in the licence text. Stress testing a machine you are being paid to repair is commercial use.
+It has been removed from the kit rather than carried with a warning attached, and it should not be
+added back without buying the Premium licence.
 
 That is a reading of published licence text, not legal advice.
 

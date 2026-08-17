@@ -70,24 +70,6 @@ SYSINTERNALS              Autoruns, Process Explorer,
   under "no strings". That was wrong.
 
 
-OCCT                      tagged "licence" in the launcher
-  Checked 2026-08-17 against the OCBASE EULA.
-----------------------------------------------------------------
-  THE FREE LICENCE IS PERSONAL USE ONLY. Their wording: a free
-  licence to use the Software "for your personal use only to the
-  exclusion of any commercial purposes in any form whatsoever".
-
-  They also say plainly that unauthorised commercial use "can be
-  subject to legal prosecution".
-
-  Paid client work needs the Premium licence, via Patreon or
-  direct with OCBASE. OCBASE is a French company, so this is
-  enforceable in the EU rather than theoretical.
-
-  Stress testing a machine you are being paid to repair is
-  commercial use. This is the sharpest restriction on the stick.
-
-
 MALWAREBYTES              tagged "licence" in the launcher
   Checked 2026-08-12.
 ----------------------------------------------------------------
@@ -209,10 +191,10 @@ HIREN'S BOOTCD PE
 
   Open source, permissive or copyleft, all fine to carry and to
   use commercially:
-    WinSCP, Notepad++, Rufus, BleachBit, KeePassXC, Picocrypt,
-    Double Commander, BCUninstaller, Angry IP Scanner, RustDesk,
-    WindTerm, Win11Debloat, DriverStore Explorer, TestDisk and
-    QPhotoRec, SystemRescue, Rescuezilla, MemTest86+.
+    WinSCP, Notepad++, Rufus, BleachBit, Double Commander,
+    BCUninstaller, Angry IP Scanner, WindTerm, Win11Debloat,
+    DriverStore Explorer, TestDisk and QPhotoRec, SystemRescue,
+    Rescuezilla, MemTest86+.
 
 
 ================================================================
@@ -228,12 +210,6 @@ HIREN'S BOOTCD PE
 
   Kaspersky Rescue Disk  Free to download and boot. Their terms
                          were not re-read this pass.
-
-  Ransomware Decryptors  A folder of tools from four different
-                         vendors (Emsisoft, Avast, Bitdefender,
-                         Kaspersky), each with its own terms.
-                         Check the specific decryptor before
-                         using one on paid work.
 
 
 ================================================================
@@ -251,10 +227,15 @@ HIREN'S BOOTCD PE
   stays yours and the repo ships no binaries. Both of those are
   currently true.
 
-  The three that would actually bite:
-    OCCT          personal use only, and they say they will act
+  The two that would actually bite:
     Sysinternals  yours to use, not yours to pass on
     Malwarebytes  free tier is not for business devices
+
+  OCCT was the sharpest of them, a free licence for personal use
+  only with prosecution named in the text. It was REMOVED from the
+  stick on 2026-08-17 along with RustDesk, KeePassXC, Picocrypt and
+  the ransomware decryptors. Do not re-add OCCT without buying the
+  Premium licence: paid repair work is commercial use.
 
   This is a reading of published licence text, not legal advice.
   If Lazarus ever ships as a product, or a stick is sold or
