@@ -4,12 +4,18 @@
 are fixing.** Find out what is wrong with a PC, repair it, strip out what should not be there, and
 put back what should. Any Windows 10 or 11 machine, yours or somebody else's.
 
+<!-- SCREENSHOT SHOWS 43 TOOLS. Tests\test-docs.ps1 checks that number
+     against the launcher's own table and FAILS if they diverge, because
+     adding or removing a tool makes this picture wrong and no text
+     check can read a PNG. If the test fails: retake the shot, then
+     update the number on this line. -->
 <p align="center">
   <img src="Docs/images/launcher.png" width="430"
-       alt="The Lazarus launcher: tools grouped by category with Health Report and Repair selected, showing its description and a Launch button">
+       alt="The Lazarus launcher: a search box, an admin toggle, and tools grouped into Malware and Forensics, Drive Health and Recovery, Hardware Diagnostics and Drivers, with disk usage and a tool count along the bottom">
   <br>
-  <em>Plug in, run <code>Start.bat</code>, pick a tool. Grouped, searchable, and every entry says
-  what it is for before you run it.</em>
+  <em>Plug in, run <code>Start.bat</code>, pick a tool. Grouped, searchable, and it shows you what
+  the stick is carrying at a glance. Click any entry and it says what it does, and how much space
+  it takes, before you run it.</em>
 </p>
 
 ## What it does

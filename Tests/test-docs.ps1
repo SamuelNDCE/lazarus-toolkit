@@ -103,6 +103,28 @@ if ($doc -match 'WHAT IS ON IT\s+-\s+(\d+) tools \+ (\d+) boot ISOs') {
     Check 'the headline counts were found' $false 'the "N tools + N boot ISOs" line has moved'
 }
 
+# --- the SCREENSHOT must match the launcher too -----------------------
+#
+# The README picture is the first thing anyone sees, and after five tools
+# were removed it still showed all five, plus a footer reading 48 tools.
+# Every text check above passed the whole time, because none of them can
+# read a PNG.
+#
+# So the count the screenshot shows is written beside it as a comment and
+# asserted here. It cannot verify the pixels, but it makes the picture
+# go stale LOUDLY: change the catalogue and this fails until somebody
+# retakes the shot.
+$readme = Get-Content (Join-Path $RepoRoot 'README.md') -Raw
+if ($readme -match 'SCREENSHOT SHOWS (\d+) TOOLS') {
+    $shotCount = [int]$Matches[1]
+    Check "the screenshot is current (shows $shotCount, launcher has $($all.Count))" `
+          ($shotCount -eq $all.Count) `
+          'retake Docs\images\launcher.png, then update the number in the comment beside it'
+} else {
+    Check 'the screenshot count marker is present' $false `
+          'the "SCREENSHOT SHOWS N TOOLS" comment in README.md has gone'
+}
+
 # Tools removed on 2026-08-17 must not creep back into the prose.
 $gone = @('KVRT','System Informer','CPU-Z','Snappy Driver','GSmartControl','VeraCrypt','NirLauncher','OCCT','RustDesk','KeePassXC','Picocrypt')
 $crept = @($gone | Where-Object { $doc -match [regex]::Escape($_) })
