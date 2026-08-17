@@ -47,8 +47,12 @@ param(
 
 $ErrorActionPreference = 'Stop'
 if (-not $Root) { $Root = Split-Path $PSScriptRoot -Parent }
-. (Join-Path $PSScriptRoot 'Common.ps1')
 
+# Deliberately does NOT load Common.ps1. It uses nothing from it, and the
+# dependency was real breakage rather than dead weight: dot-sourcing a
+# file that is not beside this one throws under $ErrorActionPreference
+# 'Stop', so the script died before extracting anything and reported it
+# as a missing icon rather than a missing dependency.
 Add-Type -AssemblyName System.Drawing
 
 $IconDir = Join-Path $Root 'Icons'
@@ -69,23 +73,37 @@ function Get-Slug($name) {
 # appears when it falls over.
 $HelperExe = '^(unins|setup|vcredist|install|update|crash|report|helper|launcher)'
 
-function Resolve-IconSource($full, $stickRoot) {
+function Resolve-IconSource($full, $rel) {
+    # An ISO is a disc image, not a program. Windows hands back the same
+    # generic disc-image icon for every one of them, so extracting turns
+    # five distinct entries into five copies of one picture. The launcher
+    # already draws a disc glyph for these, which is both honest and
+    # consistent, so leave it to do that.
+    if ($full -match '\.iso$') { return $null }
+
     # A .bat or .cmd carries the generic script icon, identical for every
     # tool. Use the biggest exe in the tool folder instead.
     if ($full -notmatch '\.(bat|cmd)$') { return $full }
-    $dir = Split-Path $full -Parent
 
-    # A .bat sitting DIRECTLY in Tools\ has no tool folder of its own, so
-    # a recursive search from there rummages through every tool on the
-    # stick and returns the largest exe anywhere on it. That is exactly
-    # what happened: Health-Report.bat lives in Tools\, and the health
-    # report was illustrated with OCCT's icon.
+    # THE SEARCH MUST STAY INSIDE ONE TOOL'S FOLDER.
     #
-    # Our own scripts are the only things in that position, and they have
-    # no binary to read, so the honest answer is none.
-    $toolsRoot = (Join-Path $stickRoot 'Tools').TrimEnd('\')
-    if ($dir.TrimEnd('\') -ieq $toolsRoot) { return $null }
+    # A script sitting directly in a top-level folder has no tool folder
+    # of its own, so a recursive search from there sweeps everything
+    # under it and returns the largest exe on the stick. Both halves of
+    # that were caught by running this for real rather than by reading it:
+    #
+    #   Tools\Health-Report.bat   gave the health report OCCT's icon.
+    #   Setup\*.bat  (7 entries)  ALL gave themselves Veyon's installer
+    #                             icon, so seven different entries showed
+    #                             one identical wrong picture.
+    #
+    # So depth decides it. "Tools\Firefox\run.bat" has a tool folder and
+    # is fine. "Setup\Run-Setup.bat" does not, and the honest answer for
+    # it is no icon at all.
+    $segments = @($rel -split '\\' | Where-Object { $_ })
+    if ($segments.Count -lt 3) { return $null }
 
+    $dir = Split-Path $full -Parent
     $exe = Get-ChildItem -Path $dir -Filter *.exe -Recurse -ErrorAction SilentlyContinue |
            Where-Object { $_.Name -notmatch $HelperExe } |
            Sort-Object Length -Descending | Select-Object -First 1
@@ -120,7 +138,7 @@ foreach ($m in $entries) {
         continue
     }
 
-    $src = Resolve-IconSource $full $Root
+    $src = Resolve-IconSource $full $rel
     if (-not $src) { $skipped++; continue }
 
     try {

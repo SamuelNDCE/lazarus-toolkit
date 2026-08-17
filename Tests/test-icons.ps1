@@ -1,4 +1,4 @@
-param([string]$Root)
+﻿param([string]$Root)
 <#
  ICONS COME OUT OF THE TOOLS, NOT OUT OF THE REPO
 
@@ -94,7 +94,7 @@ var DATA = [
 ];
 '@ | Set-Content (Join-Path $tmp 'Lazarus.hta') -Encoding UTF8
 
-    Copy-Item (Join-Path $Root 'Common.ps1') $tmp -ErrorAction SilentlyContinue
+    # Get-Icons.ps1 is deliberately standalone, so nothing else is copied.
     $gi = Join-Path $tmp 'Get-Icons.ps1'
     Copy-Item (Join-Path $Root 'Get-Icons.ps1') $gi
 
@@ -198,6 +198,67 @@ var DATA = [
     } else {
         Check 'an icon was produced for the helper-tool case' $false
     }
+
+    # --- a script one level down, and an ISO, get nothing ------------
+    #
+    # Setup\*.bat is the case that broke: seven entries, each one level
+    # inside a top-level folder, every one of them handed the same
+    # Veyon installer icon. An .iso is worse still, because Windows
+    # returns the identical generic disc image for every one.
+    #
+    # The invariant underneath both is asserted last and is the real
+    # guard: NO TWO TOOLS MAY END UP WITH THE SAME PICTURE.
+    $setupDir = Join-Path $tmp 'Setup'
+    New-Item -ItemType Directory -Path $setupDir -Force | Out-Null
+    Set-Content (Join-Path $setupDir 'Run-Setup.bat') '@echo off' -Encoding ASCII
+    Copy-Item (Join-Path $env:WINDIR 'System32\notepad.exe') (Join-Path $setupDir 'veyon-setup.exe')
+    Set-Content (Join-Path $tmp 'fake.iso') 'not really an iso' -Encoding ASCII
+    @'
+var DATA = [
+["Group", [
+ ["Setup One","Setup\\Run-Setup.bat","purpose","desc","",""],
+ ["Some ISO","ISO\\fake.iso","purpose","desc","",""]
+]]
+];
+'@ | Set-Content (Join-Path $tmp 'Lazarus.hta') -Encoding UTF8
+    & $gi -Root $tmp *>$null
+    Check 'a script one level inside a top folder gets no icon' (
+        -not (Test-Path (Join-Path $tmp 'Icons\setupone.png')))
+    Check 'an ISO gets no icon, the launcher draws a disc' (
+        -not (Test-Path (Join-Path $tmp 'Icons\someiso.png')))
+
+    # --- no two tools may share a picture -----------------------------
+    #
+    # The invariant that would have caught BOTH real bugs on its own:
+    # seven Setup entries showing one Veyon icon, and the health report
+    # showing OCCT's, were both "two tools, one picture".
+    #
+    # Run against a fixture of its own, with three genuinely different
+    # binaries. The earlier fixtures deliberately copy notepad.exe more
+    # than once, so asserting over those would fail on the test's own
+    # setup rather than on anything the extractor did wrong.
+    $dupRoot = Join-Path $tmp 'dup'
+    $sources = @{ 'ToolOne' = 'notepad.exe'; 'ToolTwo' = 'mmc.exe'; 'ToolThree' = 'taskmgr.exe' }
+    $entries = @()
+    foreach ($k in $sources.Keys) {
+        $d = Join-Path $dupRoot "Tools\$k"
+        New-Item -ItemType Directory -Path $d -Force | Out-Null
+        Copy-Item (Join-Path $env:WINDIR "System32\$($sources[$k])") (Join-Path $d 'app.exe')
+        $entries += " [""$k"",""Tools\\$k\\app.exe"",""p"",""d"","""",""""],"
+    }
+    Copy-Item (Join-Path $Root 'Get-Icons.ps1') $dupRoot
+    ("var DATA = [" + "`n[""G"", [`n" + ($entries -join "`n").TrimEnd(',') + "`n]]`n];") |
+        Set-Content (Join-Path $dupRoot 'Lazarus.hta') -Encoding UTF8
+    & (Join-Path $dupRoot 'Get-Icons.ps1') -Root $dupRoot *>$null
+
+    $produced = @(Get-ChildItem (Join-Path $dupRoot 'Icons') -Filter *.png -EA SilentlyContinue)
+    Check 'three distinct tools each produced an icon' ($produced.Count -eq 3) "got $($produced.Count)"
+    $hashes = @{}; $dupes = @()
+    foreach ($p in $produced) {
+        $h = (Get-FileHash $p.FullName -Algorithm SHA256).Hash
+        if ($hashes.ContainsKey($h)) { $dupes += "$($hashes[$h]) = $($p.Name)" } else { $hashes[$h] = $p.Name }
+    }
+    Check 'no two extracted icons are byte-identical' ($dupes.Count -eq 0) ($dupes -join '; ')
 
     # --- caching ------------------------------------------------------
     #

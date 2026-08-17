@@ -1,4 +1,4 @@
-param([string]$Root)
+﻿param([string]$Root)
 <#
  Fails if anything personal or machine-specific is about to be published.
 
@@ -111,7 +111,10 @@ $allow = @(
     'Mozilla','Wagnardsoft',
     # Shell.Application is the COM class the launcher uses to elevate,
     # so "Shell.Application's ShellExecute" reads as a possessive name.
-    'Application'
+    'Application',
+    # Veyon is classroom-management software named in a comment about an
+    # icon-extraction bug. A product, not a person.
+    'Veyon'
 )
 # -CaseSensitive is load bearing. Select-String ignores case by default,
 # so [A-Z] happily matched "caller's" and "chkdsk's" and buried the one
