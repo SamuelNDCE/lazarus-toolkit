@@ -236,8 +236,17 @@ fetch it elsewhere or USB-tether a phone.
 
 ## It asks what you want first
 
-The first screen is a chooser: up and down to move, Enter to switch a row on or off, move to
-CONTINUE and press Enter.
+<p align="center">
+  <img src="Docs/images/health-report-picker.png" width="700"
+       alt="The health report's first screen: every section ticked, and the cursor already sitting on CONTINUE, run the report, marked recommended">
+  <br>
+  <em>The cursor opens on <strong>CONTINUE</strong>, so the common answer is one keypress. The
+  ticks only decide what the report records, and leaving them alone is the recommendation.</em>
+</p>
+
+The first screen is a chooser: up and down to move, Enter to switch a row on or off. **It opens
+with the cursor already on CONTINUE**, so if you want the normal run you press Enter once and
+never think about it.
 
 **Press Enter and you get everything, and a saved report.** That is the default and it is what the
 tool has always done. The chooser exists for the jobs it could not do before:
