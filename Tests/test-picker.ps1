@@ -373,5 +373,45 @@ $unreachable = @($keys | Where-Object { $_ -notin $mapped })
 Check 'every section is reachable through the Include map' ($unreachable.Count -eq 0) "unreachable: $($unreachable -join ',')"
 
 Write-Host ''
+Write-Host 'WHERE THE CURSOR STARTS' -ForegroundColor Cyan
+
+# The health report opens on START, so the common answer is one keypress
+# and nobody has to decide anything. The repair menu must keep opening on
+# the first repair, because there the ticks ARE the decision.
+#
+# Both halves are asserted. A test that only proved the new behaviour
+# would pass just as happily if -StartSelected had been made the default
+# for every caller, which is the actual risk in a shared control.
+
+# --- default: cursor is on the first item ----------------------------
+$items = NewItems
+$r = Show-Picker -Items $items -TestKeys @(13)
+Check 'without -StartSelected, Enter toggles the first item' ($items[0].On -eq $false)
+Check 'and does not proceed' ($null -eq $r -or $r -eq $false -or $items[0].On -eq $false)
+
+# --- -StartSelected: cursor is on START ------------------------------
+$items = NewItems
+$r = Show-Picker -Items $items -TestKeys @(13) -StartSelected
+Check '-StartSelected: one Enter proceeds' ($r -eq $true)
+Check '-StartSelected: it toggled nothing' (
+    ($items[0].On -eq $true) -and ($items[1].On -eq $true) -and ($items[2].On -eq $false))
+
+# --- the index is found, not assumed ---------------------------------
+#
+# -ShowAllNone inserts three more rows before START. A hardcoded offset
+# would land on "turn every option on" here and silently tick the lot,
+# which looks like it worked. This is the case that catches that.
+$items = NewItems
+$r = Show-Picker -Items $items -TestKeys @(13) -StartSelected -ShowAllNone -AllowEmpty
+Check '-StartSelected finds START past the bulk rows' ($r -eq $true)
+Check 'and still toggled nothing' (
+    ($items[0].On -eq $true) -and ($items[1].On -eq $true) -and ($items[2].On -eq $false))
+
+# --- the report actually asks for it ---------------------------------
+Check 'Health-Report calls the picker with -StartSelected' ($hr -match '-StartSelected')
+$rh = Get-Content (Join-Path $Root 'Repair-Health.ps1') -Raw
+Check 'Repair-Health does NOT' ($rh -notmatch '-StartSelected')
+
+Write-Host ''
 if ($fail -eq 0) { Write-Host 'PICKER OK' -ForegroundColor Green } else { Write-Host "$fail PICKER CHECK(S) FAILED" -ForegroundColor Red }
 exit $fail

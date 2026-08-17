@@ -401,7 +401,10 @@ if (-not $Script:Unattended) {
                       -Title 'STEP 1 of 2:  THE HEALTH REPORT  (reads only, changes nothing)' `
                       -Hint @(
                           '    STEP 1, here:       the REPORT. Reads the PC, changes nothing.',
-                          '    STEP 2, afterwards: the REPAIRS. Chosen separately.'
+                          '    STEP 2, afterwards: the REPAIRS. Chosen separately.',
+                          '',
+                          '    Just press ENTER. These ticks only choose what the report',
+                          '    RECORDS, and leaving them all on is the recommendation.'
                       ) `
                       -StartLabel  'CONTINUE  ->  run the report  (recommended)' `
                       -AllOnLabel  'Turn every option ON  (recommended)' `
@@ -409,7 +412,7 @@ if (-not $Script:Unattended) {
                       -AllOnDetail 'Switch every section back on.' `
                       -SkipDetail  'Skip step 1 entirely and go to the repair menu.' `
                       -CancelLabel 'Quit. Do not report, do not repair.' `
-                      -AllowEmpty -ShowAllNone -SkipProceeds)) {
+                      -AllowEmpty -ShowAllNone -SkipProceeds -StartSelected)) {
                 Write-Host ''
                 Write-Host '    Nothing was run.' -ForegroundColor DarkGray
                 Write-Host ''
@@ -1673,6 +1676,10 @@ if ($Script:Unattended) {
     Write-Host '    Everything above was read-only. This part CHANGES the machine.' -ForegroundColor DarkGray
     Write-Host '    You pick which repairs to run from a menu.' -ForegroundColor DarkGray
     Write-Host ''
+    # The report above may have taken a minute or more. A queued Enter
+    # here reads as an empty answer, which is not '^y', so the repairs
+    # would be declined by a keystroke that was never aimed at them.
+    Clear-InputBuffer
     if ((Read-Host '    Run the repair and recovery now? (y/n)') -match '^y') {
         & $deep
         exit
@@ -1686,4 +1693,4 @@ Write-Host ''
 # The window is the report until somebody has read it, so it stays open.
 # Unattended there is nobody to press anything, and a scheduled run that
 # waits forever on a keystroke is a hung task, not a finished one.
-if (-not $Script:Unattended) { Read-Host '    Press Enter to close' }
+if (-not $Script:Unattended) { Clear-InputBuffer; Read-Host '    Press Enter to close' }

@@ -162,6 +162,38 @@ body {
   background: rgba(157,31,24,0.12);
 }
 #ejectbtn:hover { background: #9d1f18; border-color: #9d1f18; color: #ffffff; }
+/* Admin slider, in the HEADER beside rescan.
+   It lived in the footer and was invisible: #barwrap and #stat come
+   after it in the DOM and painted straight over it. The footer is a
+   46px strip already carrying a bar, status text and eject, so the
+   header is simply the right place for it. */
+#admwrap {
+  position: absolute; right: 45px; top: 7px;
+  width: 40px; text-align: center; cursor: pointer;
+}
+#admsw {
+  width: 34px; height: 16px; margin: 0 auto; position: relative;
+  background: #c9ccd2; border-radius: 999px;
+  border: 1px solid rgba(0,0,0,0.14);
+  /* Slides rather than jumps. The knob moving is the feedback that the
+     click registered, so it is worth the 160ms. */
+  transition: background-color 160ms ease, border-color 160ms ease;
+}
+#admknob {
+  position: absolute; top: 1px; left: 1px;
+  width: 12px; height: 12px; border-radius: 999px; background: #ffffff;
+  box-shadow: 0 1px 2px rgba(0,0,0,0.3);
+  transition: left 160ms ease;
+}
+#admlbl {
+  font-size: 8px; letter-spacing: 0.5px; color: #7a7f88;
+  margin-top: 1px; line-height: 1.1;
+}
+/* ON is deliberately loud. Everything launching elevated is a real
+   change in behaviour and should never be something you forgot. */
+#admwrap.on #admsw { background: #0b6182; border-color: #0b6182; }
+#admwrap.on #admknob { left: 19px; }
+#admwrap.on #admlbl { color: #0b6182; font-weight: bold; }
 #ejectbtn.busy {
   background: #9d1f18; border-color: #9d1f18; color: #ffffff;
   font-size: 9px; line-height: 12px; padding-top: 7px;
@@ -172,6 +204,10 @@ body {
 <body>
 
 <div id="head">
+  <div id="admwrap" onclick="toggleAdmin()" title="ON: every tool you launch runs as administrator. Leave it on for locked-down machines, where an AppLocker policy blocks anything run from this stick unless it is elevated.">
+    <div id="admsw"><div id="admknob"></div></div>
+    <div id="admlbl">ADMIN</div>
+  </div>
   <div id="rfsh" onclick="refresh()" title="Re-scan the drive and rebuild this list">&#8635;</div>
   <div id="bn">Lazarus</div>
   <div id="bs">portable &middot; nothing installs to the host</div>
@@ -306,12 +342,20 @@ var DATA = [
 ]],
 ["Temporary", [
 
- ["Club Laptop Build","Setup\\Run-Setup.bat","Provision a laptop for the coding club",
-  "The full Southend Music Tech Clubs build: accounts, software, Chrome policy, AppLocker, auditing and the desktop shortcuts, in one run. About 25 minutes. Reads its settings from Setup\\Config.ps1. Temporary: delete the Setup folder when the batch is finished.","temp","t-warn"],
- ["Check Club Build","Setup\\Verify-Club.bat","Check a built laptop and repair what drifted",
-  "Checks accounts, software, filtering DNS, lockdown, privacy, auditing and the desktop. Reports what has changed since the build and offers to put each one back. Read-only until you say yes.","temp",""],
+ ["1. Choose Build Options","Setup\\Choose-Build.bat","Pick once, then every laptop builds the same",
+  "DO THIS FIRST, once, before any laptop. Tick extra software to install, anything to uninstall from laptops already built, and whether to run a health report at the end. Every build then uses those answers and only asks for the two passwords. Safe to re-run.","temp",""],
+ ["2. Club Laptop Build","Setup\\Run-Setup.bat","Provision a laptop for the coding club",
+  "The full club build: accounts, software, Chrome policy, AppLocker, auditing and desktop shortcuts, in one run. About 25 minutes. Checks the disk first and warns if it looks to be failing. Asks two passwords and whether this is the teacher laptop, then runs to the end.","temp","t-warn"],
+ ["3. Check Club Build","Setup\\Verify-Club.bat","Check a built laptop and repair what drifted",
+  "Checks accounts, software, filtering, lockdown, auditing, and whether the teacher machine can reach this laptop. Installs what is ticked and missing, removes what is ticked for removal. Changes nothing until you say yes. Run on the first laptop before the rest.","temp",""],
+ ["4. Gather Logs from Laptop","Setup\\Gather-Logs.bat","Bring a built laptop's logs onto the stick",
+  "Run this ON A BUILT LAPTOP to copy its build and check logs back onto the stick, filed under the machine name. A build run from a copy leaves its logs on that laptop, so without this they never come back for review. Copies only.","temp",""],
+ ["5. Collect Machine Evidence","Setup\\Collect-Evidence.bat","What Windows and the firmware recorded",
+  "Run on a laptop that misbehaved: switched itself off, showed a firmware warning at boot, blue screened, or failed an install with no reason given. Collects HP Sure Start events, shutdowns, crashes, disk errors, installer failures and the battery. Read only.","temp",""],
+ ["6. Repair Admin Tools","Setup\\Repair-AdminTools.bat","Fix the Admin Tools shortcuts on a laptop",
+  "Run on a laptop that is ALREADY BUILT if a desktop Admin Tools shortcut opens and closes instantly, or says it is not running as administrator. Refreshes the deployed tools from this stick and rebuilds the shortcuts so they elevate. Takes seconds, rebuilds nothing.","temp",""],
  ["Copy Setup to a Laptop","Setup\\Make-Portable.bat","Put the build folder on the machine itself",
-  "Copies the whole Setup folder to the laptop so the build can run without the stick plugged in, verifies the copy by file list and total size, and locks it down if it carries a Tailscale key.","temp",""]
+  "Copies the whole Setup folder to the laptop so the build can run without the stick plugged in, and verifies the copy by file list and total size rather than assuming it worked. Your saved build choices travel with it.","temp",""]
 ]],
 ["Boot ISOs", [
 
@@ -341,32 +385,38 @@ var TAGDEF = {
   "set"  : "A collection, not a single program. Opens a folder of tools.",
   "10 days" : "Expires 10 days after download and refuses to run rather than scanning with stale definitions. Re-download before a job.",
   "licence" : "Licensing caveat for commercial or paid client work. Read the description.",
-  "temp" : "For the job in hand, not part of the permanent repair kit. Delete the Setup folder when the batch is finished."
+  "temp" : "For the job in hand, not part of the permanent repair kit. Delete the Setup folder when the batch is finished.",
+  "found" : "Not in the launcher's own list. Found in the Tools folder and added automatically, so its category and description are guesses."
 };
 function tagTitle(tag){ return TAGDEF[tag] ? TAGDEF[tag] : ""; }
 
-/* Each tool's own icon, extracted from its exe into .\Icons at build time.
-   Keyed by display name. ISOs have no icon and fall through to a disc glyph. */
-var ICON = {
- "Ransomware Decryptors":"decryptors", "Linux Reader":"linuxreader",
- "Malwarebytes":"malwarebytes", "Autoruns":"autoruns", "Process Explorer":"procexp",
- "Activity Log":"activitylog", "Process Monitor":"procmon",
- "ADWCleaner":"adwcleaner", "Firefox":"firefox", "Win11Debloat":"win11debloat", "Dism++":"dismpp",
- "TCPView":"tcpview", "Restore Point":"restorepoint", "Health Report and Repair":"healthreport", "CrystalDiskInfo":"crystaldiskinfo",
- "QPhotoRec":"qphotorec", "OCCT":"occt",
- "HWiNFO64":"hwinfo", "GPU-Z":"gpuz",
- "BCUninstaller":"bcuninstaller", "DriverStore Explorer":"rapr",
- "Double Commander":"doublecmd",
- "Display Driver Uninstaller":"ddu",
- "WinSCP":"winscp", "WindTerm":"windterm", "Angry IP Scanner":"ipscan",
- "RustDesk":"rustdesk",
- "KeePassXC":"keepassxc", "Picocrypt":"picocrypt", "Everything":"everything",
- "WizTree":"wiztree", "7-Zip":"sevenzip", "Notepad++":"notepadpp",
- "HxD":"hxd",
- "BleachBit":"bleachbit", "Rufus":"rufus"
-};
+/* MUST match Get-Slug in Tools\Get-Icons.ps1. If the two ever disagree
+   the launcher looks for a filename that script never writes, every
+   icon quietly becomes a glyph, and nothing reports a fault. */
+function slug(name){
+  return name.toLowerCase().replace(/&amp;/g, "&").replace(/[^a-z0-9]/g, "");
+}
+
+/* Icons are EXTRACTED from each tool's own binary by Tools\Get-Icons.ps1
+   and cached in .\Icons, which is gitignored. There is no hand-kept map
+   of name to filename any more: a tool dropped on the stick gets its own
+   icon on the next refresh without anyone editing anything.
+
+   Existence is checked rather than assumed, because the cache is built
+   from whatever is actually plugged in. A tool that is not on this stick
+   has no icon to extract, and a broken <img> looks worse than a glyph. */
+var ICONHIT = {};
+function iconFile(name){
+  var s = slug(name);
+  if (ICONHIT[s] === undefined) {
+    try { ICONHIT[s] = fso.FileExists(BASE + "\\Icons\\" + s + ".png"); }
+    catch (e) { ICONHIT[s] = false; }
+  }
+  return ICONHIT[s] ? ("Icons/" + s + ".png") : null;
+}
 function iconTag(name, cls){
-  if (ICON[name]) { return '<img class="' + cls + '" src="Icons/' + ICON[name] + '.png">'; }
+  var f = iconFile(name);
+  if (f) { return '<img class="' + cls + '" src="' + f + '">'; }
   return '<span class="' + cls + ' disc">&#9673;</span>';
 }
 
@@ -397,10 +447,103 @@ function toolSize(t){
   return v;
 }
 
+/* ---------------------------------------------------------------------------
+   TOOLS NOBODY LISTED
+
+   Anything dropped into Tools\ shows up on the next refresh, launchable,
+   with its own icon, without touching this file. Adding a tool is one
+   step: copy the folder in.
+
+   An entry in DATA is still worth writing, because that is where the
+   category, the plain-English purpose and the licence pin come from, and
+   none of those can be guessed from a folder. So discovery does not
+   replace the table: it catches what the table has not got round to, and
+   says so on screen rather than pretending the tool was always known.
+
+   Windows forbids < > : " | ? * in a filename, so a folder name cannot
+   break the markup it is interpolated into and needs no escaping.
+   --------------------------------------------------------------------------- */
+function knownFolders(){
+  var seen = {};
+  for (var g = 0; g < DATA.length; g++) {
+    for (var i = 0; i < DATA[g][1].length; i++) {
+      var p = DATA[g][1][i][1].split("\\");
+      if (p.length > 1 && p[0].toLowerCase() === "tools") { seen[p[1].toLowerCase()] = true; }
+    }
+  }
+  return seen;
+}
+
+/* Biggest exe wins, because portable builds ship helpers (crash
+   handlers, updaters, language tools) alongside the real program and
+   the real program is almost always the largest. Depth is capped: a
+   folder walk on USB is slow, and nothing nests its main binary four
+   levels down. */
+function biggestExe(folder, depth){
+  var best = null, bestSize = -1;
+  try {
+    var fc = new Enumerator(folder.Files);
+    for (; !fc.atEnd(); fc.moveNext()) {
+      var f = fc.item();
+      if (!/\.exe$/i.test(f.Name)) { continue; }
+      if (/^(unins|setup|vcredist|install|update|crash|report)/i.test(f.Name)) { continue; }
+      if (f.Size > bestSize) { best = f; bestSize = f.Size; }
+    }
+    if (depth > 0) {
+      var sc = new Enumerator(folder.SubFolders);
+      for (; !sc.atEnd(); sc.moveNext()) {
+        var r = biggestExe(sc.item(), depth - 1);
+        if (r && r.Size > bestSize) { best = r; bestSize = r.Size; }
+      }
+    }
+  } catch (e) {}
+  return best;
+}
+
+function launchTarget(folder){
+  /* A batch file sitting at the top of a tool folder is there to set
+     something up before the exe runs, so it outranks the exe. */
+  try {
+    var fc = new Enumerator(folder.Files);
+    for (; !fc.atEnd(); fc.moveNext()) {
+      var f = fc.item();
+      if (/\.(bat|cmd)$/i.test(f.Name)) { return f; }
+    }
+  } catch (e) {}
+  return biggestExe(folder, 2);
+}
+
+function discover(){
+  var seen = knownFolders(), found = [];
+  try {
+    var root = fso.GetFolder(BASE + "\\Tools");
+    var e = new Enumerator(root.SubFolders);
+    for (; !e.atEnd(); e.moveNext()) {
+      var d = e.item();
+      if (seen[d.Name.toLowerCase()]) { continue; }
+      /* Firmware images are not programs and must never be offered as
+         something to click. */
+      if (/^BIOS-/i.test(d.Name)) { continue; }
+      var t = launchTarget(d);
+      if (!t) { continue; }
+      found[found.length] = [d.Name, t.Path.substring(BASE.length + 1),
+        "Added to this stick, not part of the kit",
+        "Found in Tools\\" + d.Name + " and listed automatically, so it runs without anyone editing the launcher. Add an entry in Lazarus.hta to give it a category, a proper description and a licence pin.",
+        "found", "t-info"];
+    }
+  } catch (e) {}
+  return found;
+}
+
 function build(){
   var html = "", idx = 0, miss = 0;
-  for (var g = 0; g < DATA.length; g++) {
-    var grp = DATA[g], kids = "";
+  /* Discovered tools are appended as their own group rather than folded
+     into a real category, because a guess must never be indistinguishable
+     from something that was checked and written down. */
+  var groups = DATA, extra = discover();
+  if (extra.length) { groups = DATA.concat([["Found in the Tools folder", extra]]); }
+  for (var g = 0; g < groups.length; g++) {
+    var grp = groups[g], kids = "";
     var isIso = (grp[0] === "Boot ISOs");
     for (var i = 0; i < grp[1].length; i++) {
       var t = grp[1][i];
@@ -478,20 +621,24 @@ function parseTable(txt){
 
 /* Re-read our own tables off the stick. This is what makes Refresh mean
    "re-read the stick" rather than "re-walk what was loaded at startup":
-   edit DATA, ICON or TAGDEF, press Refresh, and the change is live.
-   Any failure leaves the in-memory tables untouched and reports false. */
+   edit DATA or TAGDEF, press Refresh, and the change is live.
+   Any failure leaves the in-memory tables untouched and reports false.
+
+   The icon table used to be re-read here too. There is no icon table any
+   more: icons are found by slug on disk, so the icon cache is refreshed
+   by clearing ICONHIT rather than by parsing anything. */
 function reloadTables(){
   try {
     var f = fso.OpenTextFile(BASE + "\\Lazarus.hta", 1);
     var txt = f.ReadAll();
     f.Close();
     var d = sliceTable(txt, "DATA", "[", "]");
-    var i = sliceTable(txt, "ICON", "{", "}");
     var t = sliceTable(txt, "TAGDEF", "{", "}");
-    if (!d || !i || !t) { return false; }
-    var nd = parseTable(d), ni = parseTable(i), nt = parseTable(t);
-    if (!nd || !ni || !nt || !nd.length) { return false; }
-    DATA = nd; ICON = ni; TAGDEF = nt;
+    if (!d || !t) { return false; }
+    var nd = parseTable(d), nt = parseTable(t);
+    if (!nd || !nt || !nd.length) { return false; }
+    DATA = nd; TAGDEF = nt;
+    ICONHIT = {};
     return true;
   } catch (e) { return false; }
 }
@@ -566,15 +713,90 @@ function pick(i){
     '<span id="dexp" onclick="reveal()">Open folder</span>' + btn;
 }
 
+/* ---------------------------------------------------------------------------
+   RUN AS ADMINISTRATOR, for every tool at once.
+
+   A locked-down machine typically applies AppLocker allowing %WINDIR%
+   and %PROGRAMFILES% for Everyone and everything else for
+   Administrators only. A removable drive is neither, so every tool on
+   this stick is blocked on such a machine.
+
+   Being signed in as an administrator is NOT enough. Under UAC an
+   ordinary process carries the Administrators SID as deny-only, so the
+   "Administrators Allow" rule does not match, and Windows blocks the
+   program before it can run the code that asks to elevate. The window
+   opens and shuts in a millisecond.
+
+   shell.Run cannot elevate. Shell.Application's ShellExecute with the
+   "runas" verb can, so the toggle picks between them.
+
+   The setting is remembered on the stick, so it survives closing the
+   launcher and travels to the next laptop with it.
+   --------------------------------------------------------------------------- */
+/* ON BY DEFAULT. The file records the OFF state, not the on state, so
+   a fresh stick elevates without anyone having to know why. On a
+   locked-down laptop AppLocker blocks everything run from this stick
+   unless it is elevated, so off-by-default would mean the tools appear
+   broken on exactly the machines they are for. */
+var ADMIN_OFF_FLAG = BASE + "\\Docs\\admin-off.flag";
+var RUNADMIN = true;
+try { RUNADMIN = !fso.FileExists(ADMIN_OFF_FLAG); } catch (e) { RUNADMIN = true; }
+
+function paintAdmin(){
+  var w = document.getElementById("admwrap");
+  if (!w) { return; }
+  w.className = RUNADMIN ? "on" : "";
+}
+
+function toggleAdmin(){
+  RUNADMIN = !RUNADMIN;
+  /* Persisted as a file rather than in memory: the whole point is that
+     you set it once on a laptop where the stick is blocked, and it is
+     still set for the next tool and the next machine. */
+  try {
+    if (RUNADMIN) {
+      if (fso.FileExists(ADMIN_OFF_FLAG)) { fso.DeleteFile(ADMIN_OFF_FLAG); }
+    } else {
+      var f = fso.CreateTextFile(ADMIN_OFF_FLAG, true);
+      f.WriteLine("The ADMIN slider in Lazarus is OFF, so tools launch normally.");
+      f.WriteLine("Delete this file, or click the slider again, to turn it back on.");
+      f.Close();
+    }
+  } catch (e) {
+    /* A read-only stick must not silently pretend the setting stuck.
+       It still works for this session, and says so. */
+    alert("The setting could not be saved to the stick, so it applies to this session only.\n\n" + e.message);
+  }
+  paintAdmin();
+}
+
 function go(){
   var t = FLAT[SEL];
   if (!t || t.iso) { return; }
   var full = BASE + "\\" + t.rel;
   if (!fso.FileExists(full)) { alert("Not found:\n\n" + full); return; }
+  var dir = full.substring(0, full.lastIndexOf("\\"));
   try {
-    shell.CurrentDirectory = full.substring(0, full.lastIndexOf("\\"));
-    shell.Run('"' + full + '"', 1, false);
-  } catch (e) { alert("Could not launch:\n\n" + full + "\n\n" + e.message); }
+    if (RUNADMIN) {
+      /* "runas" raises the UAC prompt. Cancelling it throws, which is a
+         normal answer and not a fault, so it is reported gently. */
+      var sa = new ActiveXObject("Shell.Application");
+      sa.ShellExecute(full, "", dir, "runas", 1);
+    } else {
+      shell.CurrentDirectory = dir;
+      shell.Run('"' + full + '"', 1, false);
+    }
+  } catch (e) {
+    if (RUNADMIN) {
+      alert("Could not start it as administrator.\n\n" + full +
+            "\n\nIf you clicked No on the prompt, that is all this is." +
+            "\n\n" + e.message);
+    } else {
+      alert("Could not launch:\n\n" + full + "\n\n" + e.message +
+            "\n\nIf this machine is locked down, its AppLocker policy" +
+            "\nblocks programs run from this stick. Turn ADMIN on, top right.");
+    }
+  }
 }
 
 function reveal(){
@@ -707,6 +929,12 @@ window.onload = function(){
   window.resizeTo(w, h);
   try { window.moveTo(screen.availWidth - w - 14, screen.availHeight - h - 14); } catch (e) {}
   build();
+  /* PAINT THE ADMIN BUTTON ON LOAD, not only when it is clicked.
+     The setting is remembered in a file on the stick, so reopening
+     the launcher with it left ON would otherwise show OFF while
+     every tool silently elevated. A control that misreports what it
+     is doing is worse than no control. */
+  paintAdmin();
 };
 </script>
 </body>

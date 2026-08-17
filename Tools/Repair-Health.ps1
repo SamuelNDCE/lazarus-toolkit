@@ -526,6 +526,11 @@ Write-Host ''
 
 # Last chance to change your mind, and it comes BEFORE the restore point
 # so an accidental Enter at the menu does not commit you to anything.
+#
+# That guard only works if the Enter has to be pressed HERE. A key still
+# queued from the menu above would sail straight through it, which is
+# the same stolen keypress that later closed a finished repair unread.
+Clear-InputBuffer
 $go = Read-Host '    ENTER to start, B to go back and change the list, Q to quit'
 if ($go -match '^[Qq]') { Write-Host ''; Write-Host '    Nothing was run.' -ForegroundColor DarkGray; Write-Host ''; exit }
 if ($go -match '^[Bb]') { continue }
@@ -536,6 +541,7 @@ if ($changing.Count) {
     Write-Host "    $($changing.Count) of these change the computer." -ForegroundColor Yellow
     Write-Host '    A restore point gives you a way back if anything goes wrong.' -ForegroundColor DarkGray
     Write-Host ''
+    Clear-InputBuffer
     if ((Read-Host '    Create a restore point first? (y/n)') -match '^y') {
         Work 'creating a restore point'
         try {
@@ -1728,4 +1734,8 @@ $file = Join-Path $PSScriptRoot ("repairlog-$env:COMPUTERNAME-$(Get-Date -f 'yyy
 try { $Log -join "`r`n" | Set-Content $file -Encoding UTF8; Write-Host "    Saved: $file" -ForegroundColor DarkGray }
 catch { Write-Host "    Could not save the log: $($_.Exception.Message)" -ForegroundColor Red }
 Write-Host ''
+# The whole run is on screen above this line and this is the only thing
+# keeping it there. Anything typed during the scans would otherwise
+# answer it before it is even drawn.
+Clear-InputBuffer
 Read-Host '    Press Enter to close'

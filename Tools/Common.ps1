@@ -266,6 +266,36 @@ function Get-AnsiLine($text, $colour) {
 }
 
 # ---------------------------------------------------------------------
+#  EMPTY THE KEYBOARD QUEUE BEFORE ASKING ANYTHING
+#
+#  Console input is a queue, and until this existed nothing here ever
+#  emptied it. sfc, dism and chkdsk run bare for minutes and do not read
+#  stdin, so every key pressed while watching them waits in that queue.
+#  The next Read-Host takes one, prints nothing, and carries on.
+#
+#  That is not theoretical. A 4.4 minute repair on 2026-08-17 finished,
+#  printed its verdict, saved its log, and the window shut before any of
+#  it could be read. Nothing had crashed: the log is written on the last
+#  line, so the script got there. The final "Press Enter to close" was
+#  answered by a keystroke made minutes earlier, while chkdsk was still
+#  scanning. Health-Report launches Repair-Health with `& $deep` in the
+#  SAME console, so the queue survives the handover, and the Windows
+#  Terminal launch path has no pause of its own: that one Read-Host is
+#  the only thing holding the window open.
+#
+#  The quieter half of the same bug: a stolen Enter at a "(y/n)" gate
+#  returns an empty string, which does not match '^y', so it answers NO
+#  and nothing on screen says a question was ever asked.
+#
+#  FlushInputBuffer throws on a host with no real console, which is
+#  every redirected and automated run, so it is wrapped. The catch is
+#  deliberately silent: an unflushable host has no queue to steal from.
+# ---------------------------------------------------------------------
+function Clear-InputBuffer {
+    try { $Host.UI.RawUI.FlushInputBuffer() } catch { }
+}
+
+# ---------------------------------------------------------------------
 #  DEFERRED QUESTIONS
 #
 #  Shared by every tool here, because the same fault keeps coming back:
@@ -302,6 +332,10 @@ function Invoke-Deferred {
         }
         return
     }
+    # These are asked at the very end of a run that may have spent
+    # minutes on a bare scan, so this is the most likely place of all to
+    # find something in the queue.
+    Clear-InputBuffer
     Write-Host ''
     Write-Host "  $($Script:Deferred.Count) thing(s) need your answer" -ForegroundColor Cyan
     Write-Host "  $('-' * 32)" -ForegroundColor DarkCyan
@@ -1058,6 +1092,16 @@ function Show-Picker {
         # menu must: everything unticked plus "save a file" unticked is a
         # legitimate choice meaning "show me the machine, save nothing".
         [switch]$AllowEmpty,
+        # Park the cursor on START rather than on the first checkbox.
+        #
+        # The report menu wants this and the repair menu must not have
+        # it. In the report the ticks only decide what the run RECORDS,
+        # the recommended answer is "leave them", and opening on a
+        # checkbox invites toggling one before reading what it does. In
+        # the repair menu the ticks ARE the decision, so opening on
+        # START would put the cursor on a button that does nothing until
+        # something is chosen.
+        [switch]$StartSelected,
         [int[]]$TestKeys,
         # Drive it with scripted keys but STILL PAINT, so the real
         # escape sequences can be captured and inspected. -TestKeys
@@ -1085,7 +1129,16 @@ function Show-Picker {
     $rows += [pscustomobject]@{ Kind = 'start';  Task = $null }
     $rows += [pscustomobject]@{ Kind = 'cancel'; Task = $null }
 
+    # Found by SEARCHING for the start row rather than by arithmetic.
+    # Its index depends on -ShowAllNone adding three more rows, so a
+    # hardcoded offset would be right for one caller and silently wrong
+    # for the other.
     $i = 0
+    if ($StartSelected) {
+        for ($n = 0; $n -lt $rows.Count; $n++) {
+            if ($rows[$n].Kind -eq 'start') { $i = $n; break }
+        }
+    }
     $width = 78
     if (-not $silent) {
         try { $width = [Math]::Min(78, $Host.UI.RawUI.WindowSize.Width - 2) } catch { $width = 78 }

@@ -54,6 +54,29 @@ Setup/
 *.cap
 BIOS-*/
 
+# EXTRACTED ICONS, a cache and not a source.
+#
+# Each tool's icon is now read out of the tool's own binary by
+# Tools\Get-Icons.ps1, named by slug, and written here. It is rebuilt
+# from whatever is actually plugged in, so committing it would ship 37
+# pictures of programs that are not in this repo, and adding a tool
+# would once again mean drawing it an icon by hand.
+Icons/*.png
+# Except the three that are OURS. Health Report, Restore Point and
+# Activity Log are our own scripts: they have no binary for the
+# extractor to read, so their artwork is a source file like any other.
+!Icons/healthreportandrepair.png
+!Icons/restorepoint.png
+!Icons/activitylog.png
+
+# PER-STICK STATE, not project state.
+#
+# The ADMIN slider records its OFF state as a file. Committing that
+# would ship a clone with elevation silently switched off, on the very
+# machines that need it, and the slider would then be telling the truth
+# about a setting nobody here chose. It is a property of one stick.
+Docs/admin-off.flag
+
 # Windows and editor noise
 Thumbs.db
 desktop.ini

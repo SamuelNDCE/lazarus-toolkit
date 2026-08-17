@@ -270,6 +270,35 @@ if (Test-Path $pickTest) {
     Check 'picker test present' $false 'Tests\test-picker.ps1 is missing'
 }
 
+Section 'ICONS COME OUT OF THE TOOLS'
+# Three places derive the icon filename from the display name: the
+# extractor, the launcher and validate.js. They cannot disagree, because
+# a disagreement raises nothing at all: every icon silently becomes a
+# fallback glyph and the stick looks empty rather than broken.
+$iconTest = Join-Path $PSScriptRoot 'test-icons.ps1'
+if (Test-Path $iconTest) {
+    & $iconTest -Root $Root *>$null
+    Check 'icons extract from the binaries, and no two tools share a name' ($LASTEXITCODE -eq 0) `
+          'run Tests\test-icons.ps1 for the detail'
+} else {
+    Check 'icon test present' $false 'Tests\test-icons.ps1 is missing'
+}
+
+Section 'A QUEUED KEYPRESS MUST NOT ANSWER A PROMPT'
+# A 4.4 minute repair finished, saved its log, and vanished unread
+# because the final "Press Enter to close" was answered by a key pressed
+# while chkdsk was still running. Nothing had crashed. Every prompt that
+# gates something now empties the queue first, and this proves it stays
+# that way when a new prompt is added.
+$flushTest = Join-Path $PSScriptRoot 'test-inputflush.ps1'
+if (Test-Path $flushTest) {
+    & $flushTest -Root $Root *>$null
+    Check 'every prompt empties the keyboard queue before it reads' ($LASTEXITCODE -eq 0) `
+          'run Tests\test-inputflush.ps1 for the detail'
+} else {
+    Check 'input-flush test present' $false 'Tests\test-inputflush.ps1 is missing'
+}
+
 Section 'COLLECTING OTHER TOOLS'' LOGS'
 $clTest = Join-Path $PSScriptRoot 'test-collectlogs.ps1'
 if (Test-Path $clTest) {

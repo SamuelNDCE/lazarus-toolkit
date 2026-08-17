@@ -31,8 +31,9 @@ launcher that groups them, searches them, and explains in a sentence what each o
 to reach for it. Almost all of them are portable and leave nothing behind. The few that do not are
 flagged in the launcher and in the table below.
 
-**Adding your own tool takes a folder and one line.** Drop it in `Tools\`, add its entry, press
-Refresh. See [Adding your own tools](#adding-your-own-tools).
+**Adding a tool is one step: drop it in the `Tools` folder.** The launcher finds it on the next
+refresh, works out what to launch, and pulls the icon out of the program itself. Nothing to edit,
+no artwork to draw. See [Adding your own tools](#adding-your-own-tools).
 
 Every guard in this project exists because something went wrong on a real computer. The design
 notes at the bottom say which.
@@ -471,6 +472,20 @@ Not launchable from the stick. Reboot and pick them from the Ventoy menu.
 
 ## Adding your own tools
 
+**Drop the folder in `Tools\` and press Refresh. That is the whole requirement.** The launcher
+scans `Tools\` on every refresh, finds anything it has no entry for, works out what to launch, pulls
+the icon out of the program's own binary, and lists it under **Found in the Tools folder** with a
+`found` pin. Portable builds work best, since nothing is installed.
+
+It picks the entry point the way you would: a `.bat` or `.cmd` at the top of the folder wins,
+because that is what a portable build ships to set its environment up. Otherwise it takes the
+largest `.exe`, skipping the uninstallers, updaters and crash reporters that sit beside the real
+program.
+
+**The `found` pin is the point.** It says the category and the description were guessed rather than
+written, so a tool nobody has described never looks the same as one that has been checked. To
+promote it out of that group, give it a real entry:
+
 **1. Put the tool in `Tools\<Name>\`.** Portable builds work best, since nothing is installed.
 
 **2. Add one entry to the array in `Lazarus.hta`:**
@@ -489,8 +504,18 @@ Not launchable from the stick. Reboot and pick them from the Ventoy menu.
 | 5 | Tag: `AV` if antivirus will flag it, `boot` for ISOs, `temp` for one-offs, else `""` |
 | 6 | Row class: `t-dang` (red) or `t-warn` (amber) for anything risky, else `""` |
 
-**3. Optionally add a 48x48 PNG** to `Icons\` and map it further down the same file:
-`"Your Tool":"yourtool",`
+**3. Icons need no work at all.** `Tools\Get-Icons.ps1` reads each icon out of the tool's own
+binary and caches it in `Icons\`, named after the tool with everything but letters and digits
+stripped, which is the same name the launcher looks for. There is no map to keep in step and no
+artwork to draw.
+
+```powershell
+.\Tools\Get-Icons.ps1          # add anything missing
+.\Tools\Get-Icons.ps1 -Force   # re-extract everything
+```
+
+`Icons\` is a cache and is gitignored. The only committed icons are the three for Health Report,
+Restore Point and Activity Log, which are our own scripts and have no binary to read.
 
 **4. Check it before trusting it:** `node Docs\validate.js .` verifies every path exists, every
 icon resolves, and no field is over length. It also lists tool folders on disk that are missing

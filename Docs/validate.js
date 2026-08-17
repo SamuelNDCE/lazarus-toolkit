@@ -25,8 +25,14 @@ function grab(name, open, close) {
 // HTML entities, trailing-comma tolerance), not JSON, so JSON.parse cannot read
 // them. Input is our own launcher file on our own stick, read-only, local-only.
 const DATA = eval(grab('DATA', '[', ']'));
-const ICON = eval('(' + grab('ICON', '{', '}') + ')');
 const TAGDEF = eval('(' + grab('TAGDEF', '{', '}') + ')');
+
+// Icons are no longer mapped by hand. Tools\Get-Icons.ps1 extracts each
+// tool's own icon into .\Icons named by this slug, and the launcher looks
+// for the same slug. THREE places now share one rule, so it is asserted
+// here rather than assumed: a silent disagreement turns every icon into a
+// fallback glyph and nothing anywhere reports a fault.
+const slug = name => name.toLowerCase().replace(/&amp;/g, '&').replace(/[^a-z0-9]/g, '');
 
 const MAX_DESC = 269;   // longest proven to fit the fixed 212px detail pane
 const MAX_PURPOSE = 44;
@@ -50,16 +56,24 @@ for (const [group, kids] of DATA) {
     if (/<[a-z/]/i.test(desc)) problems.push(['ANGLE BRACKET in desc (innerHTML eats it)', name, '']);
     if (tag && !TAGDEF[tag]) problems.push(['UNDEFINED TAG "' + tag + '"', name, '']);
 
-    if (ICON[name]) {
-      seenIcons[name] = true;
-      const png = path.join(BASE, 'Icons', ICON[name] + '.png');
-      if (!fs.existsSync(png)) problems.push(['MISSING ICON PNG', name, 'Icons\\' + ICON[name] + '.png']);
-    }
+    // A missing icon is NOT a problem: the cache is built from the tools
+    // actually plugged in, so a tool that is not on this stick has none
+    // to extract and correctly falls back to a glyph. What is recorded is
+    // the coverage, so "icons: 4 of 48" is visible rather than silent.
+    if (fs.existsSync(path.join(BASE, 'Icons', slug(name) + '.png'))) seenIcons[name] = true;
   }
 }
 
-// Icons defined for entries that no longer exist in DATA = dropped tools.
-const orphanIcons = Object.keys(ICON).filter(k => !seenIcons[k]);
+// Icon files matching no tool in DATA. Harmless, but they are the trail
+// left by a tool that was removed, and the cache never shrinks on its own.
+let orphanIcons = [];
+try {
+  const wanted = new Set(entries.map(e => slug(e.name)));
+  orphanIcons = fs.readdirSync(path.join(BASE, 'Icons'))
+    .filter(f => f.toLowerCase().endsWith('.png'))
+    .map(f => f.replace(/\.png$/i, ''))
+    .filter(s => !wanted.has(s));
+} catch (e) { /* no cache yet, which is the normal state of a fresh clone */ }
 
 // Tool folders physically present but referenced by no DATA entry.
 const referenced = new Set(entries.map(e => e.rel.split('\\').slice(0, 2).join('\\').toLowerCase()));
@@ -75,7 +89,7 @@ const isos = entries.filter(e => e.group === 'Boot ISOs').length;
 console.log('Lazarus.hta at ' + HTA);
 console.log('  entries      : ' + entries.length + '  (' + (entries.length - isos) + ' tools + ' + isos + ' ISOs)');
 console.log('  groups       : ' + DATA.length);
-console.log('  icons mapped : ' + Object.keys(ICON).length);
+console.log('  icons cached : ' + Object.keys(seenIcons).length + ' of ' + entries.length);
 console.log('  longest desc : ' + Math.max(...entries.map(e => e.desc.length)) + ' / ' + MAX_DESC);
 console.log('  longest purp : ' + Math.max(...entries.map(e => e.purpose.length)) + ' / ' + MAX_PURPOSE);
 console.log('');
@@ -89,8 +103,8 @@ if (problems.length) {
 
 if (orphanIcons.length) {
   console.log('');
-  console.log('ORPHAN ICONS (icon extracted, but tool is NOT in the launcher menu):');
-  for (const k of orphanIcons) console.log('  ' + k + '  ->  Icons\\' + ICON[k] + '.png');
+  console.log('ORPHAN ICONS (cached, but no tool in the launcher matches):');
+  for (const k of orphanIcons) console.log('  Icons\\' + k + '.png');
 }
 
 if (unlisted.length) {
