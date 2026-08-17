@@ -11,10 +11,11 @@
               not worn out, disk not dying, Windows activated,
               safeguarding actually switched on.
 
- Written for secondhand ex-corporate laptops, which is what club
- machines usually are, so it checks the things those specifically
- come with: worn batteries, missing activation, BitLocker you do not
- have the key for, and Absolute persistence.
+ Written for any Windows 10 or 11 machine. Several checks exist
+ because a used or ex-corporate PC arrives with faults a new one
+ does not: worn batteries, missing or volume-only activation,
+ BitLocker you do not have the key for, and Absolute persistence.
+ Those are the awkward cases, not the only ones.
 =======================================================================
 #>
 

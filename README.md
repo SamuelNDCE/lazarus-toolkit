@@ -1,18 +1,41 @@
 # Lazarus Toolkit
 
-Tools for surveying and repairing Windows machines, built for secondhand and ex-corporate PCs.
+**A portable Windows repair kit that runs off a USB stick and installs nothing on the machine you
+are fixing.** Find out what is wrong with a PC, repair it, strip out what should not be there, and
+put back what should. Any Windows 10 or 11 machine, yours or somebody else's.
 
-There are two things here, and **you almost certainly want the first one**:
+<p align="center">
+  <img src="Docs/images/launcher.png" width="430"
+       alt="The Lazarus launcher: tools grouped by category with Health Report and Repair selected, showing its description and a Launch button">
+  <br>
+  <em>Plug in, run <code>Start.bat</code>, pick a tool. Grouped, searchable, and every entry says
+  what it is for before you run it.</em>
+</p>
 
-1. **Health Report and Repair.** A single self-contained tool that tells you what is wrong with a
-   Windows PC and then fixes it, using data and utilities Windows already has. **It installs on its
-   own in one command and does not need the rest of this repo.**
-2. **The Lazarus USB stick.** A launcher that puts the above plus around 40 third-party utilities
-   on one bootable-ish repair stick, for working on machines that are not yours.
+## What it does
 
-Built for a real job: getting donated ex-corporate laptops fit to hand to a child at a coding club,
-and repairing client machines. Every guard in it exists because something went wrong on an actual
-computer.
+| | |
+|---|---|
+| **Diagnose** | One run tells you the machine, its faults, and how serious each one is. Battery wear, disk health, RAM, drivers, activation, BitLocker, crashes, failed updates |
+| **Repair** | Thirteen repairs using Windows' own tools: SFC, DISM, chkdsk, Windows Update, driver installs, each with a time estimate and a restore point offered first |
+| **Remove** | Bloatware, adware, hijacked browsers, superseded drivers, and the leftovers a vendor's own uninstaller abandons |
+| **Recover** | Deleted files, unreadable disks, Linux and NAS volumes Windows cannot see, and machines that will not boot at all |
+
+**The flagship is [Health Report and Repair](#health-report-and-repair).** It is the reason this
+project exists and it is the thing to reach for first. One command, ninety seconds, and you know
+whether the machine in front of you is worth keeping and what is broken. **It installs on its own
+in one line and needs nothing else from this repo.**
+
+**Around it sits the stick:** [35 utilities and 5 boot ISOs](#what-is-on-the-stick) behind a
+launcher that groups them, searches them, and explains in a sentence what each one is for and when
+to reach for it. Almost all of them are portable and leave nothing behind. The few that do not are
+flagged in the launcher and in the table below.
+
+**Adding your own tool takes a folder and one line.** Drop it in `Tools\`, add its entry, press
+Refresh. See [Adding your own tools](#adding-your-own-tools).
+
+Every guard in this project exists because something went wrong on a real computer. The design
+notes at the bottom say which.
 
 ---
 
@@ -25,8 +48,9 @@ computer.
 - **Tells you what is wrong with it:** battery wear, SMART disk health, broken drivers *ranked
   CRITICAL to LOW*, activation channel, BitLocker, firewall, crashes, failed updates.
 - **Gives you a verdict:** ready to hand over, usable with notes, or not ready.
-- **Then offers to fix it:** 13 repairs using Windows' own tools, each with a time estimate,
-  each off by default, each offering a restore point first.
+- **Then offers to fix it:** 13 repairs using Windows' own tools, each with a time estimate and a
+  restore point offered first. Everything that changes the machine is off by default, apart from
+  the standard SFC repair, which is the one you almost always want.
 - **Collects every log the job left behind:** 25 locations across Windows, your repairs and any
   antivirus tools that ran, into one dated folder.
 - **Never sends anything anywhere.** See below.
@@ -186,8 +210,10 @@ health-report -NoElevate             # deliberately run as a standard user
 ## The repairs
 
 Chosen the same way. **Nothing is assumed.** Anything that modifies the machine is tagged
-`CHANGES`, is **off by default**, and offers a restore point first. The menu shows a time
-estimate and a plain description for whatever is highlighted.
+`CHANGES` and offers a restore point first. All of them are **off by default** except the standard
+SFC repair, which is ticked because it is the one you almost always want and it skips DISM unless
+SFC actually finds damage. The menu shows a time estimate and a plain description for whatever is
+highlighted.
 
 **Everything in this menu changes the machine.** The read-only checks that used to live here,
 the event log sweep and the reliability history, are report sections now: they collect what
@@ -339,7 +365,7 @@ except the driver-update repair, which talks to Windows Update and nothing else.
 
 # The Lazarus USB stick
 
-The launcher, for when you want the health report *and* 40 other utilities on one stick.
+The launcher, for when you want the health report *and* the rest of the kit on one stick.
 
 ```powershell
 .\Start.bat
@@ -349,8 +375,99 @@ That opens `Lazarus.hta`, the graphical launcher. **Everything under `Tools\` is
 program you can also run directly**, without the launcher and without the rest of the toolkit. The
 launcher is a front door, not a wrapper.
 
-The third-party utilities are **not** bundled here (see Licensing), so a fresh clone shows those as
-missing until you add them. Health Report and Repair works immediately with nothing downloaded.
+The third-party utilities are **not** bundled here (see [Licensing](#licensing)), so a fresh clone
+shows those greyed out as missing until you add them. Health Report and Repair works immediately
+with nothing downloaded.
+
+## What is on the stick
+
+Thirty-five utilities and five boot ISOs, in the order the launcher shows them.
+
+**The Notes column is the licence position**, because "free" and "free for paid work" are not the
+same thing and the difference matters if you charge for repairs. Full detail, with the wording each
+vendor actually uses, is in [`Docs/LICENCES.txt`](Docs/LICENCES.txt).
+
+### Malware and forensics
+
+| Tool | What it is for | Notes |
+|---|---|---|
+| **Malwarebytes** | Full scan and clean, detections always current | Installs, it is not portable. Free tier is **not licensed for business devices** |
+| **Autoruns** | Every autostart hook malware uses to survive a reboot | Sysinternals. Yours to use, **not yours to pass on** |
+| **Process Explorer** | Identify a suspicious running process, check it against VirusTotal | Sysinternals, same terms |
+| **Process Monitor** | Live capture of every file, registry and network event | Sysinternals, same terms |
+| **TCPView** | See what a process is talking to | Sysinternals, same terms |
+| **ADWCleaner** | Strip adware, toolbars and hijacked browsers | Free and portable |
+| **Activity Log** | What has been run on a machine, even with auditing off | Ours, Apache 2.0 |
+| **Ransomware Decryptors** | 92 offline decryptors, because a ransomed PC rarely has a browser | Four vendors, check the one you use |
+
+### Drive health and recovery
+
+| Tool | What it is for | Notes |
+|---|---|---|
+| **Health Report and Repair** | Full checkup, then fixes what it found | Ours, Apache 2.0 |
+| **Restore Point** | A rollback point before you change anything | Ours, Apache 2.0 |
+| **CrystalDiskInfo** | SMART health per drive, one colour-coded verdict | MIT |
+| **QPhotoRec** | Recover deleted files by signature, even after a format | Open source |
+| **Linux Reader** | Read ext4, ZFS, XFS, Btrfs and APFS volumes from Windows | Freeware, closed source |
+| **HxD** | Edit raw disks, RAM and boot sectors | Free for private **and** commercial use |
+
+### Hardware diagnostics
+
+| Tool | What it is for | Notes |
+|---|---|---|
+| **OCCT** | Prove whether hardware is actually unstable | Free licence is **personal use only**. Paid work needs Premium |
+| **HWiNFO64** | The most complete and accurate sensor readout there is | Free for **non-commercial** use only |
+| **GPU-Z** | Identify and verify a graphics card, including fakes | Free commercially. Do not redistribute in a paid package |
+
+### Drivers
+
+| Tool | What it is for | Notes |
+|---|---|---|
+| **Display Driver Uninstaller** | Graphics corruption a reinstall will not fix. Run in Safe Mode | Terms ship with the download, **not verified** |
+| **DriverStore Explorer** | Purge the superseded driver packages Windows never deletes | GPL-2.0 |
+
+### Network and remote
+
+| Tool | What it is for | Notes |
+|---|---|---|
+| **WinSCP** | Move files to and from Linux boxes | GPL-3.0 |
+| **WindTerm** | SSH, SFTP, telnet and serial in one window | Open source |
+| **Angry IP Scanner** | Sweep a subnet for live hosts, no driver to install | Open source |
+| **RustDesk** | Remote into a machine to help someone | Open source, self-hostable relay |
+| **Firefox** | A clean browser when the machine's own is hijacked | Distribute **unaltered** only |
+
+### Security and credentials
+
+| Tool | What it is for | Notes |
+|---|---|---|
+| **KeePassXC** | Carry client credentials safely instead of in a text file | Open source |
+| **Picocrypt** | Encrypt recovered data before it leaves the site | Open source, single 2.6 MB binary |
+
+### Files and utilities
+
+| Tool | What it is for | Notes |
+|---|---|---|
+| **BCUninstaller** | Rip out bloatware, and the leftovers its uninstaller abandoned | Open source, no limit on client work |
+| **Win11Debloat** | Strip preinstalled junk and telemetry from a new laptop | MIT |
+| **WizTree** | Find what filled a drive, in seconds, by reading the MFT | Free tier is **non-commercial** |
+| **Everything** | Find any file instantly by name | Freeware |
+| **7-Zip** | Open literally any archive, and most installers | LGPL. Fine on commercial machines |
+| **Notepad++** | Edit config and log files without mangling them | GPL |
+| **Double Commander** | Two panes, batch rename, folder compare, runs elevated | GPL-2.0 |
+| **BleachBit** | Reclaim space and clear traces, auditably | GPL-3.0 |
+| **Rufus** | Write bootable media, or revive a stick Windows will not format | GPL-3.0 |
+
+### Boot ISOs
+
+Not launchable from the stick. Reboot and pick them from the Ventoy menu.
+
+| ISO | What it is for | Notes |
+|---|---|---|
+| **Hiren's BootCD PE** | Windows will not boot at all. About 90 tools in a Windows 11 PE | Windows PE base is Microsoft licensed. Publisher only |
+| **Kaspersky Rescue** | Malware that survives inside Windows. Scans with the OS shut down | Terms not re-verified |
+| **SystemRescue** | Repair Linux filesystems and partitions | Open source |
+| **Rescuezilla** | Image or clone a whole drive before a risky repair | Open source |
+| **MemTest86+** | Prove whether RAM is faulty, with no OS holding any of it | GPL-2.0 |
 
 ## Adding your own tools
 
@@ -593,10 +710,26 @@ exists so the real console can be asked instead of assumed.
 The scripts, launcher and documentation here are **Apache 2.0**. See `LICENSE`. Free to use, modify
 and redistribute, including commercially.
 
-The third-party utilities the launcher lists are **not** included and are not ours to redistribute.
-Each is downloaded from its own official source and remains under its own licence; see
-`Docs/LICENCES.txt`. Some, such as Hiren's BootCD PE, contain Microsoft-licensed components and can
-only ever be obtained from their publisher.
+**The third-party utilities are not included here and are not ours to redistribute.** `.gitignore`
+excludes `*.exe`, `*.msi`, `*.zip`, `*.7z`, `*.iso` and the contents of `Tools\`, so a clone carries
+our scripts and nothing of anybody else's. Each utility is fetched from its own publisher and stays
+under its own licence. Some, such as Hiren's BootCD PE, contain Microsoft-licensed components and
+can only ever be obtained from their publisher.
+
+That is a deliberate position rather than a size decision. It also means the licence question that
+matters is about *use*, not redistribution: a few of these tools are free for personal use and not
+for paid work, which is a real distinction if you charge for repairs.
+
+**[`Docs/LICENCES.txt`](Docs/LICENCES.txt) has the detail**, quoting the wording each vendor
+actually uses. The three worth knowing without opening it:
+
+| Tool | The catch |
+|---|---|
+| **OCCT** | Free licence is personal use only, explicitly excluding "any commercial purposes in any form whatsoever" |
+| **Sysinternals** | Yours to use on your own devices. Not to publish, lend, or transfer to anyone else |
+| **Malwarebytes** | The free product is not licensed for threat removal on business devices |
+
+That is a reading of published licence text, not legal advice.
 
 > **Not built yet:** an automatic `Get-Tools.ps1` to fetch each utility. Until then the third-party
 > tools are a manual step. Health Report and Repair, which is the substance of this project, needs

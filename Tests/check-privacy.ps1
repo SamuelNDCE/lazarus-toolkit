@@ -104,7 +104,11 @@ $allow = @(
     # Collect-ToolLogs now sweeps. Surfaced by the backstop the moment it
     # was written into the README, which is the check working: a
     # capitalised possessive is a person until a human says otherwise.
-    'Panther'
+    'Panther',
+    # Both are companies, surfaced by the backstop when the licence audit
+    # started quoting vendors by name. Mozilla is the Firefox publisher,
+    # Wagnardsoft publishes DDU. Neither is a person.
+    'Mozilla','Wagnardsoft'
 )
 # -CaseSensitive is load bearing. Select-String ignores case by default,
 # so [A-Z] happily matched "caller's" and "chkdsk's" and buried the one
