@@ -69,6 +69,16 @@ Icons/*.png
 !Icons/restorepoint.png
 !Icons/activitylog.png
 
+# WINDOWS SHORTCUTS. A .lnk is a binary file with an ABSOLUTE PATH
+# baked into it. The one on the stick points at "D:\Lazarus.hta" with
+# a working directory of "D:\", so it is correct on exactly one machine
+# with exactly one drive letter and silently wrong everywhere else.
+#
+# It is excluded by name rather than left to chance, because the
+# checkpoint hook stages with `git add -A` and would otherwise sweep it
+# in the first time somebody plugged the stick in at a different letter.
+*.lnk
+
 # PER-STICK STATE, not project state.
 #
 # The ADMIN slider records its OFF state as a file. Committing that
