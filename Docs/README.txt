@@ -153,155 +153,260 @@ LAYOUT
   Icons\                    each tool's own icon, used by the launcher
   Docs\                     this file
 
-  Space: 23.0 GB used, 5.8 GB free (80% full) as of 2026-08-11,
-  after the 7.89 GB Windows 11 ISO went back on.
+  Space: the launcher shows used, free and percentage along the
+  bottom of its window, read live from the drive. No figure is
+  written down here, because a number in a text file is out of date
+  the next time anything is added.
 
 ================================================================
-WHAT IS ON IT  -  37 tools + 9 boot ISOs
+WHAT IS ON IT  -  31 tools + 5 boot ISOs
 ================================================================
 
-MALWARE & FORENSICS (10)
-  Autoruns           Every autostart hook, with live VirusTotal.
-                     START HERE on a suspected infection.
-  Process Explorer   Identify a suspicious process. VirusTotal built in.
-  Process Monitor    Live file/registry/network activity.
-  System Informer    Kernel-level process and handle inspection.
-  ADWCleaner         Adware, PUPs, hijacked browsers. Updates on launch.
-  KVRT               Kaspersky Virus Removal Tool. The ONE tool here
-                     that scans a disk and removes what it finds.
-                     Standalone, installs nothing, never expires.
-                     Signatures are baked into the download, so
-                     re-download before a job. See the licence note.
-  TCPView            Every TCP/UDP connection and the process that
-                     owns it. Answers "what is this phoning home to".
-                     Opens a prompt with examples printed.
+  Every entry below is generated from the launcher's own table, so
+  this list and what you see on screen cannot drift apart.
+  Tests\Run-Checks.ps1 fails if they ever do.
 
-DRIVE HEALTH & RECOVERY (4)
-  CrystalDiskInfo    Is this drive dying? One colour-coded verdict per
-                     disk: Good, Caution or Bad, plus temperature,
-                     power-on hours and reallocated sectors. Start here.
-  QPhotoRec          File carving, GUI. The console build
-                     photorec_win.exe sits in the same folder, as does
-                     testdisk_win.exe if you ever need partition-table
-                     rebuilding: the TestDisk entry was dropped from the
-                     launcher on 2026-08-11 for its text-mode UI, but
-                     the binary is still in Tools\TestDisk.
-  Linux Reader       Reads ZFS, ext2/3/4, XFS, Btrfs, HFS+ and APFS
-                     from inside Windows and copies files off them.
-                     The quick route to a file on a TrueNAS pool
-                     without rebooting into a live ISO. Read-only,
-                     so it cannot damage the pool. Freeware from
-                     DiskInternals, signed, not open source.
+MALWARE & FORENSICS (7)
 
-HARDWARE DIAGNOSTICS (3)
-  HWiNFO64           Most accurate sensor readout there is.
-  CPU-Z              CPU, board, memory and SPD identification.
-  GPU-Z              GPU identification, sensors, BIOS dump.
+  Malwarebytes                Full scan and clean, always current.
+      INSTALLS Malwarebytes, it is not portable.
 
-DRIVERS (3)
-  Display Driver Uninstaller   Clean GPU driver removal. USE IN SAFE MODE.
-  Snappy Driver Installer      Offline driver install, fetches current packs.
-  DriverStore Explorer         Purge superseded driver packages. Windows
-                               never deletes these and DriverStore grows
-                               to many GB. Neither DDU nor Snappy does this.
+  Autoruns                    Find how malware survives reboots.
+      Lists every autostart hook Windows has: run keys, services,
+      scheduled tasks, drivers, shell extensions, codecs.
+
+  Process Explorer            Identify a suspicious running process.
+      Task Manager with a parent-child tree, loaded DLLs, open handles
+      and network connections.
+
+  Activity Log                See what has been done on a machine.
+      Reads what Windows quietly keeps even when auditing was never
+      on: UserAssist, which records every program a user launched and
+      when, plus Prefetch and the Security log.
+
+  Process Monitor             Work out what a program is actually doing.
+      Live capture of every file, registry, network and process event.
+
+  ADWCleaner                  Strip adware, toolbars and hijacked browsers.
+      Targets PUPs, bundled junk, hijacked search providers and rogue
+      extensions.
+
+  TCPView                     See what a process is talking to.
+      Live list of every TCP and UDP connection with the process that
+      owns it.
+
+DRIVE HEALTH & RECOVERY (6)
+
+  Restore Point               Make a rollback point before you start.
+      Windows 11 ships with System Protection OFF, so most machines
+      have nothing to roll back to.
+
+  Health Report and Repair    Full checkup, then fix what it found.
+      Reads what Windows already knows and gives a verdict: battery
+      wear, disk health, RAM, activation, Defender, firewall,
+      BitLocker, BIOS age, installed programs, and every driver with
+      its age.
+
+  CrystalDiskInfo             See drive health at a glance.
+      Reads SMART and gives one colour-coded verdict per drive, Good,
+      Caution or Bad, with temperature, power-on hours and reallocated
+      sector count.
+
+  QPhotoRec                   Recover deleted files from a wrecked disk.
+      Carves files by signature, ignoring the filesystem entirely.
+
+  Linux Reader                Read a NAS disk from inside Windows.
+      Opens ZFS, ext2/3/4, XFS, Btrfs and APFS volumes that Windows
+      shows as raw unformatted space, and copies files off them.
+
+  HxD                         Edit raw disks, RAM and boot sectors.
+      Hex editor that opens physical drives and live memory as if they
+      were files, which is the whole reason to carry one on a repair
+      stick: MBR, GPT, partition tables and boot sectors.
+
+HARDWARE DIAGNOSTICS (2)
+
+  HWiNFO64                    Read every sensor accurately.
+      The most complete and accurate sensor readout available: per-
+      core clocks and temperatures, VRM, power draw, drive health, fan
+      curves.
+
+  GPU-Z                       Identify and verify a graphics card.
+      GPU model, memory type and vendor, BIOS version, PCIe link speed
+      and live sensors.
+
+DRIVERS (2)
+
+  Display Driver Uninstaller  Fix graphics corruption a reinstall won't.
+      Completely removes GPU drivers including registry entries and
+      leftover files a normal uninstall leaves behind.
+
+  DriverStore Explorer        Purge old driver packages.
+      REMOVES drivers, it does not install them.
 
 NETWORK & REMOTE (4)
-  WinSCP             SFTP/SCP/FTP with a dual-pane GUI.
-  WindTerm           SSH, SFTP, telnet and serial in one window, with
-                     tabs and split panes. Replaced PuTTY.
-  Angry IP Scanner   Fast subnet sweep for live hosts. THE network
-                     discovery tool here, and deliberately so: it
-                     needs no driver installed on the machine you are
-                     working on.
-  Firefox            A clean browser that runs off the stick, keeping
-                     its profile here. For when the machine's own
-                     browser is hijacked or broken and you still need
-                     to fetch a driver. Leaves nothing on the host.
+
+  WinSCP                      Move files to and from Linux boxes.
+      Dual-pane SFTP, SCP and FTP client.
+
+  WindTerm                    Get a shell on a server or switch.
+      SSH, SFTP, telnet and serial in one window, with tabs and split
+      panes.
+
+  Angry IP Scanner            Quick sweep for live hosts.
+      Fast subnet ping sweep with hostnames and open ports.
+
+  Firefox                     Browse from a clean, separate browser.
+      A hijacked or simply broken browser is normal on an infected
+      machine, and you still need to fetch a driver or a tool.
 
 FILES & UTILITIES (10)
-  Double Commander   Dual-pane file manager. Batch rename, folder sync
-                     and compare, can run elevated.
-  Everything         Instant filename search across NTFS.
-  WizTree 4.32       What filled the drive, in seconds. Reads the MFT.
-                     TAGGED "licence": the free build is PERSONAL USE
-                     ONLY. Their pricing table lists "Commercial use
-                     not allowed" as a free-tier limitation and sells
-                     a Supporter tier at $25-$500 by staff size. This
-                     is a harder line than HWiNFO's wording. Updated
-                     from 4.30 to 4.32 on 2026-08-11.
-  7-Zip              Any archive. 7zr.exe alongside it is a single-file
-                     extractor needing no install at all.
-  Notepad++          Config and log editing.
-  HxD                Hex editor. Opens PHYSICAL DRIVES AND RAM as if
-                     they were files: MBR, GPT, partition tables, boot
-                     sectors. That is why a hex editor is here at all.
-  BCUninstaller      Uninstall ANY program, not just bloatware. Lists
-                     Store apps, Steam games and orphans, removes many
-                     at once, then hunts the leftover files and registry
-                     keys the vendor uninstaller abandoned.
-  Win11Debloat       Strip a laptop you are setting up: removes
-                     preinstalled apps, disables telemetry, declutters
-                     Start, Explorer and the taskbar. Numbered menu,
-                     elevates itself, nothing installs. Works on
-                     Windows 10 and 11. Added 2026-08-11 for a batch
-                     of laptop builds. Open source, 1 MB.
-  Dism++             A GUI over DISM. RestoreHealth on a corrupt
-                     component store, strips superseded updates and
-                     WinSxS bloat Disk Cleanup will not touch, driver
-                     and boot-entry management, offline image editing.
-                     MIT licensed. Needs an admin prompt.
-                     CORRECTION, 2026-08-11: Dism++ is NOT "a patch
-                     behind". Release tag v10.1.1002.2 ships an asset
-                     named Dism++10.1.1002.1B.zip, so the 10.1.1002.1
-                     binary IS the current build. Never compare a git
-                     tag name to a binary version string and call the
-                     difference a regression.
-                     DISMTools was trialled as the replacement the same
-                     day and REJECTED: not portable enough, and 123 MB
-                     of .NET against Dism++'s 3.6 MB. Do not re-propose.
-  BleachBit 6.0.2    Cache, temp and history cleaning. Upgraded from
-                     5.0.0.2936 (2024-07-22) on 2026-08-11.
-  Rufus              Write bootable USB media.
 
-BOOT ISOs (8)  -  reboot and pick from the Ventoy menu
-  Hiren's BootCD PE      Windows will not boot at all. Win11 PE, ~90 tools.
-  Kaspersky Rescue       Malware that survives inside Windows. Scans with
-                         Windows shut down. Updates definitions on boot.
-  SystemRescue 13.02     Linux repair: ext4, XFS, btrfs, LVM, GParted,
-                         ddrescue, qemu-img.
-  Boot-Repair-Disk       A broken boot loader on a dual-boot machine.
-                         Reinstalls GRUB, rebuilds UEFI entries, fixes a
-                         Windows/Linux dual boot that stopped showing its
-                         menu. One-click Recommended Repair covers most
-                         cases. Build files dated 2023-12-23.
-  Rescuezilla 2.6.2      Disk imaging and cloning, GUI, Clonezilla-compatible.
-  MemTest86+ 8.10        RAM testing.
-  TrueNAS SCALE 25.10.5  Rescue a TrueNAS box and its ZFS pools.
-  Proxmox VE 9.2         Rescue a Proxmox host.
+  Double Commander            Move and compare files properly.
+      Dual-pane file manager: two folders side by side, batch rename,
+      folder sync and compare, built-in archive handling, and it can
+      run elevated to reach paths Explorer refuses.
 
+  Everything                  Find any file instantly by name.
+      Indexes the entire MFT and returns matches as you type.
+
+  WizTree                     Find what filled a drive, in seconds.
+      Reads the NTFS Master File Table directly instead of walking
+      folders, so it maps a full disk in seconds where WinDirStat
+      takes many minutes.
+
+  7-Zip                       Open literally any archive.
+      Handles 7z, zip, rar, iso, wim, and extracts most installers
+      directly.
+
+  Notepad++                   Edit config and log files properly.
+      Syntax highlighting, huge-file handling, regex find-and-replace
+      across a folder, and correct Unix line-ending handling, which
+      Notepad still mangles.
+
+  BCUninstaller               Rip out bloatware, properly.
+      Lists everything installed including Store apps, Steam games and
+      orphaned entries, uninstalls many at once, then hunts the
+      leftover files and registry keys the vendor's own uninstaller
+      abandoned.
+
+  Win11Debloat                Strip bloat from a laptop you are setting up.
+      Removes preinstalled apps, disables telemetry and declutters
+      Start, Explorer and the taskbar.
+
+  Dism++                      Repair and clean up Windows itself.
+      A GUI over DISM.
+
+  BleachBit                   Reclaim space and clear traces.
+      Clears caches, temp files, logs and browser history across many
+      applications.
+
+  Rufus                       Write a bootable USB from an ISO.
+      Creates bootable installers and rescue media.
+
+BOOT ISOs (5)  -  not launchable from here. Reboot and pick
+them from the Ventoy menu.
+
+  Hiren's BootCD PE           Windows will not boot at all.
+      Bootable Windows 11 PE with about 90 free tools.
+
+  Kaspersky Rescue            Kill malware that survives inside Windows.
+      Scans with Windows shut down, so rootkits and ransomware cannot
+      hide or fight back.
+
+  SystemRescue 13.02          Repair Linux filesystems and partitions.
+      Full Linux toolkit: GParted, ddrescue, LVM, ext4, XFS and btrfs
+      repair, plus qemu-img for VM disk images.
+
+  Rescuezilla 2.6.2           Image or clone a whole drive.
+      Point-and-click disk imaging and cloning, Clonezilla-compatible.
+
+  MemTest86+ 8.10             Prove whether RAM is faulty.
+      Boots without an OS so it can test all memory.
+
+ALSO ON THE STICK
+
+  7 laptop-provisioning scripts under Setup\, grouped as
+  "Temporary" in the launcher. They are for one job, and that folder
+  is meant to be deleted when the job is done.
+
+================================================================
+ADDING YOUR OWN TOOLS
+================================================================
+
+  ONE STEP: put the folder in Tools\ and press REFRESH.
+
+  That is genuinely all that is required. The launcher scans Tools  on every refresh, finds any folder it has no entry for, works out
+  what to run, pulls the icon out of that program's own binary, and
+  lists it under "Found in the Tools folder" with a "found" pin.
+
+  Nothing to edit. No icon to draw. No file to register.
+
+  HOW IT PICKS WHAT TO LAUNCH
+    1. A .bat or .cmd at the top of the folder wins. That is what a
+       portable build ships to set its environment up before the
+       program starts.
+    2. Otherwise the largest .exe, searching two folders deep.
+    3. Uninstallers, setups, updaters, crash reporters and similar
+       helpers are skipped by name, so a program is never
+       represented by the thing that runs when it breaks.
+
+  WHY THE "found" PIN MATTERS
+    It marks an entry whose category and description were GUESSED
+    from a folder name rather than written by a person. A tool
+    nobody has described should never look identical to one that
+    has been checked, licence read and purpose written down.
+
+  TO PROMOTE IT PROPERLY, add a line to the DATA table in
+  Lazarus.hta, next to the tools already there:
+
+    ["Your Tool","Tools\YourTool\yourtool.exe","One line on what it is for",
+     "The longer description shown when the row is highlighted.","",""],
+
+    field 1  name shown in the list
+    field 2  path from the stick root, with \ doubled
+    field 3  short purpose, 44 characters MAX
+    field 4  full description, 269 characters MAX
+    field 5  pin: "licence", "VT", "live", "safe", "boot", "set",
+             "AV", "cli", or "" for none
+    field 6  row colour: "t-warn" amber, "t-dang" red, "t-ok" green,
+             "t-info" blue, or "" for none
+
+  THEN CHECK IT, rather than assuming:
+
+    node Docsalidate.js .
+
+  That verifies every path exists, every field is within its length
+  limit, every pin is defined, and lists any tool folder on disk
+  that the launcher has no entry for.
+
+  ICONS NEED NO WORK AT ALL. If you ever want to rebuild the cache
+  by hand, or you have swapped a tool for a different build:
+
+    Tools\Get-Icons.ps1            add anything missing
+    Tools\Get-Icons.ps1 -Force     re-extract everything
+
+  TO REMOVE A TOOL: delete its folder from Tools\ and delete its
+  line from the DATA table. The launcher greys out anything listed
+  but missing, so leaving the line behind is a visible reminder
+  rather than a silent breakage.
 
 ================================================================
 MALWARE TRIAGE  -  READ BEFORE TRUSTING A SCAN
 ================================================================
-  THERE IS NOW ONE SIGNATURE SCANNER: KVRT. It was added on
-  2026-08-11 because everything else in this category only tells you
-  what is wrong, it does not remove anything. Read its limits below
-  before leaning on it.
+  MOST OF THIS CATEGORY ONLY TELLS YOU WHAT IS WRONG. Autoruns,
+  Process Explorer, Process Monitor and TCPView find and explain.
+  They remove nothing. Two things here actually remove:
 
-  KVRT'S TWO CATCHES:
-    1. Its signatures are baked into the .exe at download time. The
-       copy on this stick ages from the day it was fetched. Before a
-       real job, re-download it. It does not expire or refuse to run,
-       it just quietly gets less useful.
-    2. Kaspersky is a politically loaded choice. The US banned sales
-       in 2024 and the UK NCSC has advised against it for government
-       and critical systems since 2017. For private repair work it is
-       legal and the engine is genuinely strong. If a client is
-       government, defence or critical infrastructure, use Windows
-       Defender and the boot-time Kaspersky Rescue Disk decision is
-       yours to justify. Their licence covers home use; commercial
-       use on client machines is a grey area worth reading before you
-       bill for it.
+    ADWCleaner    portable, free, updates itself on launch. Adware,
+                  PUPs and hijacked browsers only.
+    Malwarebytes  full malware scan and removal, detections always
+                  current. IT INSTALLS: it is not portable, and the
+                  free product is NOT licensed for business devices.
+                  Read Docs\LICENCES.txt before a paid job.
+
+  Plus Kaspersky Rescue Disk, which is a boot ISO rather than a tool
+  and scans with Windows shut down.
 
   NEVER GOES STALE, use first:
     Autoruns and Process Explorer. Both query VirusTotal
@@ -322,13 +427,13 @@ MALWARE TRIAGE  -  READ BEFORE TRUSTING A SCAN
     3. Process Explorer   find the process, right-click, check
                           VirusTotal, then SUSPEND it. Suspend, not
                           kill: it is reversible, so being wrong costs
-                          you nothing. System Informer does the same
-                          at kernel level if something hides.
+                          you nothing.
     4. Autoruns           find persistence, check VirusTotal, remove.
                           Also where you fix hijacked .exe file
                           associations.
     5. ADWCleaner         adware and PUP sweep
-    6. KVRT               full scan and removal, if you re-downloaded
+    6. Malwarebytes       full scan and removal. It installs, so weigh
+                          that and its licence first
     7. Defender           full scan on the host machine
     8. Kaspersky Rescue   boot it if anything survived
 
@@ -365,9 +470,10 @@ NAS AND HYPERVISOR WORK
   its native tooling, or fetch rclone on the day (single 84 MB
   binary, MIT, rclone.org) rather than carrying a stale copy.
 
-  When the box will not boot at all, use its own ISO from the
-  Ventoy menu (TrueNAS SCALE or Proxmox VE) rather than a generic
-  live distro, so the ZFS feature flags match your pools.
+  When the box will not boot at all, use its own installer ISO
+  rather than a generic live distro, so the ZFS feature flags match
+  your pools. The TrueNAS and Proxmox ISOs are NOT on this stick:
+  drop the one you need into ISO\ on the day and Ventoy will boot it.
 
 ================================================================
 TWO THINGS THAT WILL CATCH YOU OUT
@@ -399,7 +505,15 @@ LICENCES WORTH KNOWING  (fine for personal use, which is the case here)
   Linux Reader   Freeware from DiskInternals. Free to use, but closed
                  source, and they sell a paid "VMFS Recovery" line.
 
+  Sysinternals   Autoruns, Process Explorer, Process Monitor and
+                 TCPView share one licence. No commercial-use limit,
+                 but you may NOT publish, lend or transfer copies,
+                 and the install right covers "your devices".
+  Malwarebytes   The free product is not licensed for threat removal
+                 on business devices.
+
   Everything else is either open source or free for any use.
+  Docs\LICENCES.txt has the full wording and the dates it was checked.
 
 ================================================================
 VERSION STATUS  (checked 2026-08-11)
@@ -414,18 +528,18 @@ VERSION STATUS  (checked 2026-08-11)
                      a repair job needs. 53 MB, 5000 rule files.
 
   CONFIRMED CURRENT against the vendor:
-    Ventoy 1.1.17, Notepad++ 8.9.7, Rufus 4.15, KVRT 20.0.14.0,
-    Firefox 153.0.4, GSmartControl 2.0.2, System Informer
-    3.2.25011.2103, VeraCrypt 1.26.29, WinSCP 6.5.6,
-    GPU-Z 2.70.0, 7-Zip 26.02, CPU-Z 2.20, Angry IP Scanner 3.9.3,
+    Ventoy 1.1.17, Notepad++ 8.9.7, Rufus 4.15, Firefox 153.0.4,
+    WinSCP 6.5.6, GPU-Z 2.70.0, 7-Zip 26.02, Angry IP Scanner 3.9.3,
     Everything 1.4.1.1032, BCUninstaller 6.2, Double Commander 1.2.8,
-    Greenshot 1.3.315, DriverStore Explorer 1.0.26,
-    SystemRescue 13.02, Rescuezilla 2.6.2, Proxmox VE 9.2,
-    MemTest86+ 8.10, BleachBit 6.0.2
-    (2026-07-05), TestDisk 7.2
-    (2024-02-22), Everything 1.4.1.1032, and all six Sysinternals
-    tools (Autoruns 14.3, Process Explorer 17.12, Process Monitor
-    4.04, TCPView 4.19, Sigcheck 2.91).
+    DriverStore Explorer 1.0.26, SystemRescue 13.02,
+    Rescuezilla 2.6.2, MemTest86+ 8.10, BleachBit 6.0.2,
+    TestDisk 7.2, and the four Sysinternals tools still carried
+    (Autoruns 14.3, Process Explorer 17.12, Process Monitor 4.04,
+    TCPView 4.19).
+
+    These are VERSION numbers checked on 2026-08-11, not a claim
+    about what is on the stick today. The tool list above is the
+    authority for that, and it is generated rather than typed.
 
   SYSINTERNALS IS DELIBERATELY TRIMMED, do not re-extract the full
   suite. On 2026-08-11 the folder went from 166 files / 264.6 MB to
@@ -446,7 +560,8 @@ VERSION STATUS  (checked 2026-08-11)
     Hiren's BootCD PE 1.0.8 page dated 2024-03-06. The oldest thing
                            here, and inherent to that project's pace.
     Linux Reader 5.1       installer binary dated 2023-07-02.
-    Boot-Repair-Disk       build files dated 2023-12-23. The project
+    Boot-Repair-Disk       no longer carried. Build files were dated
+                           2023-12-23. The project
                            publishes no version number, only a rolling
                            64-bit ISO.
 
@@ -525,11 +640,8 @@ KEEPING IT CURRENT
   Most others    GitHub releases or the vendor site.
   ISOs           replace when you next need them, not on a schedule.
 
-  Hit REFRESH in the launcher after changing anything. Adding a tool
-  is one step now: drop the folder into Tools\ and press Refresh. The
-  launcher finds it and pulls its icon out of its own binary. Add a
-  line
-  to the DATA table in Lazarus.hta.
+  Hit REFRESH in the launcher after changing anything. To ADD a tool
+  rather than update one, see "ADDING YOUR OWN TOOLS" above.
 
   This stick exists because the previous one (MediCat v21.12) was
   frozen at December 2021 and had rotted for 4.7 years. The whole

@@ -270,6 +270,22 @@ if (Test-Path $pickTest) {
     Check 'picker test present' $false 'Tests\test-picker.ps1 is missing'
 }
 
+Section 'THE DOCS MATCH THE LAUNCHER'
+# Docs\README.txt advertised 37 tools and 9 boot ISOs when the real
+# numbers were 31 and 5. It listed seven tools that are not on the stick
+# and omitted four that are, including the flagship. Its malware triage
+# procedure was built around a scanner nobody could run. Nothing errored:
+# a stale document just reads as an authoritative one. The list is
+# generated now, and this is what keeps it that way.
+$docTest = Join-Path $PSScriptRoot 'test-docs.ps1'
+if (Test-Path $docTest) {
+    & $docTest -Root $Root *>$null
+    Check 'the documented tool list matches the launcher' ($LASTEXITCODE -eq 0) `
+          'run Tests	est-docs.ps1 for the detail'
+} else {
+    Check 'docs test present' $false 'Tests	est-docs.ps1 is missing'
+}
+
 Section 'ICONS COME OUT OF THE TOOLS'
 # Three places derive the icon filename from the display name: the
 # extractor, the launcher and validate.js. They cannot disagree, because
