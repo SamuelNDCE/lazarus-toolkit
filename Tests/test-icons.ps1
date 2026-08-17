@@ -20,6 +20,12 @@ param([string]$Root)
 if (-not $Root) { $Root = Join-Path (Split-Path $PSScriptRoot -Parent) 'Tools' }
 $RepoRoot = Split-Path $Root -Parent
 
+# Loaded HERE, not assumed. Run by hand from a shell that had already
+# loaded it this passed; run from Run-Checks.ps1 in a clean session every
+# [System.Drawing] reference failed and the whole file reported FAIL. A
+# test that only passes in the session that wrote it is not a test.
+Add-Type -AssemblyName System.Drawing
+
 $fail = 0
 function Check($name, $ok, $detail = '') {
     if ($ok) { Write-Host ("  PASS  {0}" -f $name) -ForegroundColor Green }
@@ -216,9 +222,22 @@ var DATA = [
     Check 'a second run leaves existing icons alone' (
         $null -ne $before -and $before -eq $after)
 
-    # --- nothing is shipped ------------------------------------------
-    Check 'no PNG is tracked in git under Icons' (
-        -not (& git -C $RepoRoot ls-files 'Icons/*.png'))
+    # --- only OUR OWN artwork is shipped -----------------------------
+    #
+    # Not "no icons are tracked". Health Report, Restore Point and
+    # Activity Log are our own scripts with no binary to read, so their
+    # artwork is a source file. Everything else is a vendor's icon,
+    # extracted into a cache, and must never be committed.
+    #
+    # The set is asserted EXACTLY, in both directions: a vendor icon
+    # creeping back in fails, and one of ours going missing fails too.
+    $ours = @('activitylog.png', 'healthreportandrepair.png', 'restorepoint.png')
+    $tracked = @(& git -C $RepoRoot ls-files 'Icons/*.png' |
+                 ForEach-Object { Split-Path $_ -Leaf } | Sort-Object)
+    $extra   = @($tracked | Where-Object { $_ -notin $ours })
+    $missing = @($ours    | Where-Object { $_ -notin $tracked })
+    Check 'no vendor icon is tracked in git' ($extra.Count -eq 0) "tracked: $($extra -join ', ')"
+    Check 'our own three icons are tracked'  ($missing.Count -eq 0) "missing: $($missing -join ', ')"
 } finally {
     Remove-Item $tmp -Recurse -Force -ErrorAction SilentlyContinue
 }
