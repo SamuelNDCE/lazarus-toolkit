@@ -603,30 +603,42 @@ KNOWN GAPS
   only free decryptor ever made handled v1 and v2 and is now a dead
   link. The decryptor set was removed from this stick on 2026-08-17.
 
-  WINDOWS 11 ISO IS BACK, re-added 2026-08-11 for a batch of laptop
-  builds. VERIFIED, not just downloaded:
-    file        Win11_25H2_English_x64.iso, 7.89 GB
+  THERE IS NO WINDOWS 11 ISO ON THIS STICK. Checked 2026-08-17 by
+  listing ISO\ : the five boot images above are all of them, and
+  ISO\Windows\ holds only Hiren's BootCD PE.
+
+  This section previously claimed the opposite. It said the ISO was
+  "back, re-added 2026-08-11", listed a full verification of a 7.89 GB
+  Win11_25H2_English_x64.iso, and then contradicted itself a paragraph
+  later by saying it had been removed the same day. The removal is the
+  part that was true. Corrected rather than deleted, because a reader
+  who remembers the old text needs to know which half was wrong.
+
+  WHAT ITS ABSENCE COSTS YOU, and what it does not:
+    Club laptop builds   NOTHING. Setup-Laptop.ps1 runs
+                         DISM /Online /Cleanup-Image /RestoreHealth
+                         bare, repairing from Windows Update, and says
+                         so in its own output: "no ISO needed".
+    Offline repair       THIS is what you lose. With no local source
+                         there is no in-place repair install, and
+                         RestoreHealth cannot fall back to /Source
+                         when the machine has no usable internet or a
+                         broken component store. "The laptop already
+                         has Windows" is exactly the case that needs
+                         an ISO, not the case that skips it.
+
+  Get a fresh one on the day rather than carrying a stale copy:
+    Fido.ps1 -Win 11 -Rel Latest -Ed Pro -Lang English -Arch x64
+  (github.com/pbatard/Fido, by the Rufus author.) Its link carries a
+  short-lived token, so download it immediately. Drop the ISO in
+  ISO\Windows\ and Ventoy picks it up with no further setup.
+
+  VERIFY IT AFTER DOWNLOADING. An exit code of 0 proves none of this:
     CD001       present at 0x8001, so it is a real ISO9660 image
-    label       CCCOMA_X64FRE_EN-US_DV9 (Microsoft consumer media)
-    built       2026-03-08 per the volume descriptor
-    contents    sources\install.wim 7.58 GB, so it is a COMPLETE
+    label       CCCOMA_X64FRE_EN-US_DV9 for Microsoft consumer media
+    contents    sources\install.wim near 7.5 GB, so it is a COMPLETE
                 image and not a web-installer stub
     boot        efi\boot\bootx64.efi present, so Ventoy boots it
-  An exit code of 0 proves none of the above. Check them. It matters MORE for repair than for clean installs: an
-  in-place repair install and DISM /RestoreHealth both need it as
-  their source, so "the laptop already has Windows" is exactly the
-  case that needs it, not the case that skips it. Ventoy picks it up
-  from ISO\Windows\ with no further setup. Fetched with Fido, whose
-  link carries a short-lived token, so download it immediately.
-
-  HISTORICAL, kept for the reasoning: it was removed earlier the same
-  day by request,
-  freeing 7.89 GB. That means no DISM /RestoreHealth source and no
-  in-place repair install until one is added back. Get a fresh one
-  with Fido rather than a stale copy:
-    Fido.ps1 -Win 11 -Rel Latest -Ed Pro -Lang English -Arch x64
-  (github.com/pbatard/Fido, by the Rufus author.) Drop the ISO in
-  ISO\Windows\ and Ventoy picks it up with no further setup.
 
   VENDOR DRIVE TOOLS (SeaTools, WD Dashboard, Samsung Magician)
   are deliberately absent. Five separate gated downloads, and
