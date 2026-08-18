@@ -159,7 +159,7 @@ LAYOUT
   the next time anything is added.
 
 ================================================================
-WHAT IS ON IT  -  31 tools + 5 boot ISOs
+WHAT IS ON IT  -  30 tools + 5 boot ISOs
 ================================================================
 
   Every entry below is generated from the launcher's own table, so
@@ -293,9 +293,6 @@ FILES & UTILITIES (10)
   Win11Debloat                Strip bloat from a laptop you are setting up.
       Removes preinstalled apps, disables telemetry and declutters
       Start, Explorer and the taskbar.
-
-  Dism++                      Repair and clean up Windows itself.
-      A GUI over DISM.
 
   BleachBit                   Reclaim space and clear traces.
       Clears caches, temp files, logs and browser history across many
@@ -573,7 +570,7 @@ VERSION STATUS  (checked 2026-08-11)
 
   UNSIGNED BINARIES (normal for these projects, just so you know):
     7-Zip, HxD, Angry IP Scanner, BCUninstaller,
-    Double Commander, WindTerm, Dism++
+    Double Commander, WindTerm
 
   Linux Reader is signed and the signature verifies (DiskInternals,
   Kyiv). The Windows 11 ISO carries Microsoft's own ISO9660

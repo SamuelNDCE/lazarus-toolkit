@@ -8,7 +8,14 @@ put back what should. Any Windows 10 or 11 machine, yours or somebody else's.
      against the launcher's own table and FAILS if they diverge, because
      adding or removing a tool makes this picture wrong and no text
      check can read a PNG. If the test fails: retake the shot, then
-     update the number on this line. -->
+     update the number on this line.
+
+     KNOWN STALE AS OF 2026-08-18, AND FAILING ON PURPOSE. Dism++ was
+     removed, so the launcher has 42 entries and this picture's footer
+     still reads 43. The number here is deliberately NOT bumped to 42:
+     doing that turns the check green while leaving the picture wrong,
+     which is the exact failure this check was written to catch. Retake
+     it from the stick, then set this to 42. -->
 <p align="center">
   <img src="Docs/images/launcher.png" width="430"
        alt="The Lazarus launcher: a search box, an admin toggle, and tools grouped into Malware and Forensics, Drive Health and Recovery, Hardware Diagnostics and Drivers, with disk usage and a tool count along the bottom">
@@ -39,7 +46,7 @@ downloaded at runtime, nothing sent anywhere.
 know whether the machine in front of you is worth keeping and what is broken. Then it offers to fix
 it. **It installs in one line and needs nothing else from this repo.**
 
-**2. The launcher and the stick.** [31 utilities and 5 boot ISOs](#what-is-on-the-stick), the three
+**2. The launcher and the stick.** [30 utilities and 5 boot ISOs](#what-is-on-the-stick), the three
 above among them, behind a custom UI that groups them, searches them, and explains in a sentence
 what each is for and when to reach for it. Almost all are portable and leave nothing behind; the few that do not are flagged in
 the launcher and in the tables below. **Adding a tool is one step: drop it in `Tools\` and press
@@ -60,7 +67,7 @@ Most people want the first.
 |---|---|---|
 | **1. Health Report only** | The flagship tool. Diagnose and repair a PC using what Windows already has | Run one line. Nothing else is downloaded, ever |
 | **2. The launcher, and nothing in it** | The UI, the categories, the search, the admin toggle, the eject check | Clone the repo. Add whichever tools you actually want, one folder each |
-| **3. The full kit** | The launcher plus the 31 utilities and 5 boot ISOs listed below | Fetch each tool from its own publisher. Around 8 GB on a 32 GB stick |
+| **3. The full kit** | The launcher plus the 30 utilities and 5 boot ISOs listed below | Fetch each tool from its own publisher. Around 8 GB on a 32 GB stick |
 
 ### 1. Just the health report
 
@@ -441,7 +448,7 @@ with nothing downloaded.
 
 ## What is on the stick
 
-Thirty-one utilities and five boot ISOs, in the order the launcher shows them, plus a
+Thirty utilities and five boot ISOs, in the order the launcher shows them, plus a
 [Temporary group](#temporary-the-setup-scripts) the launcher keeps separate from both.
 
 **The Notes column is the licence position**, because "free" and "free for paid work" are not the
@@ -505,7 +512,6 @@ vendor actually uses, is in [`Docs/LICENCES.txt`](Docs/LICENCES.txt).
 | **7-Zip** | Open literally any archive, and most installers | LGPL. Fine on commercial machines |
 | **Notepad++** | Edit config and log files without mangling them | GPL |
 | **Double Commander** | Two panes, batch rename, folder compare, runs elevated | GPL-2.0 |
-| **Dism++** | A GUI over DISM. Repair and clean up Windows itself | Freeware. **Not yet verified** in `LICENCES.txt` |
 | **BleachBit** | Reclaim space and clear traces, auditably | GPL-3.0 |
 | **Rufus** | Write bootable media, or revive a stick Windows will not format | GPL-3.0 |
 

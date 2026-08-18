@@ -126,7 +126,7 @@ if ($readme -match 'SCREENSHOT SHOWS (\d+) TOOLS') {
 }
 
 # Tools removed on 2026-08-17 must not creep back into the prose.
-$gone = @('KVRT','System Informer','CPU-Z','Snappy Driver','GSmartControl','VeraCrypt','NirLauncher','OCCT','RustDesk','KeePassXC','Picocrypt')
+$gone = @('KVRT','System Informer','CPU-Z','Snappy Driver','GSmartControl','VeraCrypt','NirLauncher','OCCT','RustDesk','KeePassXC','Picocrypt','Dism++')
 $crept = @($gone | Where-Object { $doc -match [regex]::Escape($_) })
 Check 'no removed tool is still described as present' ($crept.Count -eq 0) "found: $($crept -join ', ')"
 
