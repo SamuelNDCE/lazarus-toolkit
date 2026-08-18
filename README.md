@@ -27,19 +27,24 @@ put back what should. Any Windows 10 or 11 machine, yours or somebody else's.
 | **Remove** | Bloatware, adware, hijacked browsers, superseded drivers, and the leftovers a vendor's own uninstaller abandons |
 | **Recover** | Deleted files, unreadable disks, Linux and NAS volumes Windows cannot see, and machines that will not boot at all |
 
-**The flagship is [Health Report and Repair](#health-report-and-repair).** It is the reason this
-project exists and it is the thing to reach for first. One command, ninety seconds, and you know
-whether the machine in front of you is worth keeping and what is broken. **It installs on its own
-in one line and needs nothing else from this repo.**
+## Two halves. Both flagships, and neither needs the other
 
-**Around it sits the stick:** [30 utilities and 5 boot ISOs](#what-is-on-the-stick) behind a
-launcher that groups them, searches them, and explains in a sentence what each one is for and when
-to reach for it. Almost all of them are portable and leave nothing behind. The few that do not are
-flagged in the launcher and in the table below.
+**1. Our own tools, written from scratch.** Three entries on this stick are ours, Apache 2.0, no
+third party involved: **[Health Report and Repair](#health-report-and-repair)**, **Restore Point**
+and **Activity Log**. They verify and repair Windows using nothing but data Windows already records
+and commands Windows already ships. No bundled driver updater, no registry cleaner, nothing
+downloaded at runtime, nothing sent anywhere.
 
-**Adding a tool is one step: drop it in the `Tools` folder.** The launcher finds it on the next
-refresh, works out what to launch, and pulls the icon out of the program itself. Nothing to edit,
-no artwork to draw. See [Adding your own tools](#adding-your-own-tools).
+**Health Report and Repair is the one to reach for first.** One command, ninety seconds, and you
+know whether the machine in front of you is worth keeping and what is broken. Then it offers to fix
+it. **It installs in one line and needs nothing else from this repo.**
+
+**2. The launcher and the stick.** [31 utilities and 5 boot ISOs](#what-is-on-the-stick), the three
+above among them, behind a custom UI that groups them, searches them, and explains in a sentence
+what each is for and when to reach for it. Almost all are portable and leave nothing behind; the few that do not are flagged in
+the launcher and in the tables below. **Adding a tool is one step: drop it in `Tools\` and press
+Refresh.** The launcher finds it, works out what to launch, and pulls the icon out of the program
+itself. Nothing to edit, no artwork to draw.
 
 Every guard in this project exists because something went wrong on a real computer. The design
 notes at the bottom say which.
@@ -48,14 +53,14 @@ notes at the bottom say which.
 
 # Take as much or as little as you want
 
-**The three parts are independent.** Each one works on its own, and none of them needs the others.
+**These three ways of taking it are independent.** Each works on its own, and none needs the others.
 Most people want the first.
 
 | | You get | You do |
 |---|---|---|
 | **1. Health Report only** | The flagship tool. Diagnose and repair a PC using what Windows already has | Run one line. Nothing else is downloaded, ever |
 | **2. The launcher, and nothing in it** | The UI, the categories, the search, the admin toggle, the eject check | Clone the repo. Add whichever tools you actually want, one folder each |
-| **3. The full kit** | The launcher plus the 30 utilities and 5 boot ISOs listed below | Fetch each tool from its own publisher. Around 8 GB on a 32 GB stick |
+| **3. The full kit** | The launcher plus the 31 utilities and 5 boot ISOs listed below | Fetch each tool from its own publisher. Around 8 GB on a 32 GB stick |
 
 ### 1. Just the health report
 
@@ -93,22 +98,10 @@ greys out what is not there, so a stick with six tools on it is not a broken sti
 with six tools on it. Fetch the ones you want, ignore the rest, and delete an entry from `DATA` in
 `Lazarus.hta` if you would rather not see it greyed out at all.
 
-## What the whole kit can do
-
 Health Report answers "what is wrong with this machine". The rest of the stick is there for what
-you do next.
-
-| | |
-|---|---|
-| **Survey a machine you have never seen** | Make, model, serial, BIOS age, battery wear, SMART health, activation channel, BitLocker state, every driver ranked by severity, and a verdict |
-| **Repair Windows itself** | SFC, DISM, chkdsk, Windows Update repair, network stack reset, and the three temp folders Disk Cleanup does not touch |
-| **Find and remove malware** | Autostart persistence, live process inspection with VirusTotal, adware and browser hijacks, and a bootable scanner for anything that survives inside Windows |
-| **Strip a machine back** | Bloatware and Store apps, superseded driver packages, preinstalled junk on a new laptop, and the leftovers a vendor's uninstaller abandons |
-| **Install and update** | Driver updates through Windows Update, with a dry run first that tells you whether the machine can install anything at all |
-| **Recover data** | Deleted files carved by signature, ext4, ZFS, XFS, Btrfs and APFS volumes Windows cannot see, and raw disk and boot sector editing |
-| **Prove hardware is faulty** | Sensor readouts, graphics card identification and fake detection, and a bootable RAM test that runs with no OS holding memory |
-| **Work on a machine that will not boot** | Five boot ISOs: a Windows PE environment, an offline virus scanner, a Linux repair toolkit, a disk imager, and a memory tester |
-| **Get in and out cleanly** | A clean browser that inherits none of the host's settings, SSH and serial consoles, a subnet scanner, and an eject check that names whatever is still holding the drive |
+you do next: malware and forensics, drive health and recovery, hardware diagnostics, drivers,
+network and remote access, and general file work. **[The full catalogue is
+below](#what-is-on-the-stick)**, grouped the way the launcher groups it.
 
 ---
 
@@ -127,10 +120,6 @@ you do next.
 - **Collects every log the job left behind:** 25 locations across Windows, your repairs and any
   antivirus tools that ran, into one dated folder.
 - **Never sends anything anywhere.** See below.
-
-It is deliberately not a "PC optimiser". There is no registry cleaner, no bundled driver updater,
-no paid tier and nothing downloaded at runtime. Every finding comes from something Windows already
-recorded, and every repair is a command you could have typed yourself if you remembered it.
 
 ---
 
@@ -205,18 +194,10 @@ is why it stays on your disk and why you can switch saving off. See
 **Requirements:** Windows 10 or 11 and Windows PowerShell 5.1, which is already on both. Nothing to
 download, no runtime, no dependencies.
 
-## What it actually does for you
+## What it replaces
 
-You run one thing. Ninety seconds later you know whether the machine in front of you is worth
-keeping, what is broken, and how bad each fault is. Then it offers to fix what it found.
-
-That sounds like every other "PC health" tool, so here is the difference: **it only reports things
-Windows already knows and it only repairs using Windows' own tools.** There is no bundled driver
-updater, no registry cleaner, no "optimiser", nothing downloaded, and nothing sent anywhere. Every
-finding is traceable to a real Windows data source, and every repair is something you could have
-typed yourself if you had remembered the command and the order.
-
-What it replaces, in one run:
+Every finding is traceable to a real Windows data source, and every repair is a command you could
+have typed yourself if you had remembered it and the order. In one run, it replaces all of this:
 
 | Instead of | You get |
 |---|---|
@@ -408,9 +389,6 @@ Uninstall. It is a normal Windows entry and behaves like one.
 - The PATH entry and the Add/Remove Programs entry are removed too. A dry run is the default, so
   you always see the list before anything happens.
 
-The installer records everything it wrote in `installed.json`, and the uninstaller removes exactly
-that. Anything it does not recognise in the folder is left in place and named.
-
 ---
 
 # Where reports go, and what is in them
@@ -463,7 +441,8 @@ with nothing downloaded.
 
 ## What is on the stick
 
-Thirty utilities and five boot ISOs, in the order the launcher shows them.
+Thirty-one utilities and five boot ISOs, in the order the launcher shows them, plus a
+[Temporary group](#temporary-the-setup-scripts) the launcher keeps separate from both.
 
 **The Notes column is the licence position**, because "free" and "free for paid work" are not the
 same thing and the difference matters if you charge for repairs. Full detail, with the wording each
@@ -526,6 +505,7 @@ vendor actually uses, is in [`Docs/LICENCES.txt`](Docs/LICENCES.txt).
 | **7-Zip** | Open literally any archive, and most installers | LGPL. Fine on commercial machines |
 | **Notepad++** | Edit config and log files without mangling them | GPL |
 | **Double Commander** | Two panes, batch rename, folder compare, runs elevated | GPL-2.0 |
+| **Dism++** | A GUI over DISM. Repair and clean up Windows itself | Freeware. **Not yet verified** in `LICENCES.txt` |
 | **BleachBit** | Reclaim space and clear traces, auditably | GPL-3.0 |
 | **Rufus** | Write bootable media, or revive a stick Windows will not format | GPL-3.0 |
 
@@ -540,6 +520,21 @@ Not launchable from the stick. Reboot and pick them from the Ventoy menu.
 | **SystemRescue** | Repair Linux filesystems and partitions | Open source |
 | **Rescuezilla** | Image or clone a whole drive before a risky repair | Open source |
 | **MemTest86+** | Prove whether RAM is faulty, with no OS holding any of it | GPL-2.0 |
+
+### Temporary: the Setup scripts
+
+**The launcher keeps a third group, `Temporary`, separate from the tools and the ISOs on purpose.**
+It holds seven laptop-provisioning scripts under `Setup\`: choose the build options once, provision
+a machine, verify a built machine and repair whatever drifted, gather its logs, collect firmware and
+Windows evidence, and copy the build folder onto the machine itself.
+
+They are there for **one job**, and `Setup\` is meant to be deleted when that job is done. That is
+the entire reason they are not filed under Files and utilities: a tool you keep and a script you are
+about to throw away should not sit in the same list, because the second kind quietly becomes
+permanent if nothing marks it as temporary.
+
+`Setup\` is gitignored, like `Tools\` and `ISO\`, so a clone shows these greyed out as missing.
+They are our own scripts, not third-party.
 
 ## Adding your own tools
 
