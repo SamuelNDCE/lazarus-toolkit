@@ -668,7 +668,13 @@ if (-not (Test-Path $driverDir)) {
     Info "To make this offline in future, create it and drop driver packages in:"
     Info "  $driverDir"
 } else {
-    $pkgs = Get-ChildItem $driverDir -Directory -ErrorAction SilentlyContinue
+    # Sorted, not filesystem order. Get-ChildItem returns directories in
+    # whatever order the filesystem hands back, so "the first match" was
+    # not a stable choice: on this stick the generic package came back
+    # before the ASUS OEM one despite sorting after it by name. With
+    # more than one match the tool now also SAYS which it will offer,
+    # rather than silently picking.
+    $pkgs = Get-ChildItem $driverDir -Directory -ErrorAction SilentlyContinue | Sort-Object Name
     if (-not $pkgs) {
         Info "The Drivers folder is empty:  $driverDir"
     } else {
@@ -685,8 +691,12 @@ if (-not (Test-Path $driverDir)) {
             # "a different chip" is a false statement about a package that
             # might be exactly right. Say which of the three it is.
             if ($devId -and ($ids -contains $devId)) {
-                OK "$($p.Name)  matches this card"
-                if (-not $match) { $match = $p }
+                if (-not $match) {
+                    OK "$($p.Name)  matches this card, this is the one that will be offered"
+                    $match = $p
+                } else {
+                    Info "$($p.Name)  also matches, not offered (first by name wins)"
+                }
             } elseif (-not $ids -or -not $ids.Count) {
                 Info "$($p.Name)  packed installers, contents not readable until extracted"
                 Info "                 open the folder and run the right one by hand"
@@ -698,20 +708,52 @@ if (-not (Test-Path $driverDir)) {
         }
 
         if ($match) {
-            $inf = Get-ChildItem $match.FullName -Filter *.inf -Recurse -ErrorAction SilentlyContinue | Select-Object -First 1
-            $exe = Get-ChildItem $match.FullName -Include '*.exe', '*.msi' -Recurse -ErrorAction SilentlyContinue | Select-Object -First 1
+            # The .inf reported must be the one that actually lists THIS
+            # card, not simply the first alphabetically. A combined
+            # WLAN+Bluetooth package holds several, and the first by name
+            # was the Bluetooth one, so the tool printed a Bluetooth
+            # version as though it were the Wi-Fi driver's.
+            $inf = $null
+            foreach ($i in (Get-ChildItem $match.FullName -Filter *.inf -Recurse -ErrorAction SilentlyContinue)) {
+                try {
+                    if ([System.IO.File]::ReadAllText($i.FullName).ToUpper().Contains($devId)) { $inf = $i; break }
+                } catch { }
+            }
+            if (-not $inf) { $inf = Get-ChildItem $match.FullName -Filter *.inf -Recurse -ErrorAction SilentlyContinue | Select-Object -First 1 }
+
+            # Installers are taken from the TOP LEVEL of the package only,
+            # never recursively. A recursive search found mtkbtsvc.exe, an
+            # internal Bluetooth service binary shipped inside the package,
+            # and offered to run it as if it were the installer. Anything
+            # a vendor package carries internally is not an entry point.
+            #
+            # Ordered so the WLAN package is offered FIRST. Plain
+            # alphabetical put Bluetooth first, which on a tool named
+            # "fix the Wi-Fi" is the wrong thing to put in front of
+            # someone. ASUS's own note says update both together, so both
+            # are offered rather than only the first.
+            $exes = @(Get-ChildItem $match.FullName -File -ErrorAction SilentlyContinue |
+                      Where-Object { $_.Extension -eq '.exe' -or $_.Extension -eq '.msi' } |
+                      Sort-Object @{ Expression = { if ($_.Name -match 'WirelessLan|WLAN|WiFi') { 0 } else { 1 } } }, Name)
+            $exe = $exes | Select-Object -First 1
             $ver = $null
             if ($inf) {
                 $dv = (Select-String -Path $inf.FullName -Pattern '^\s*DriverVer\s*=' -ErrorAction SilentlyContinue | Select-Object -First 1)
                 if ($dv) { $ver = ($dv.Line -replace '.*=\s*', '').Trim() }
             }
-            if ($ver) { Info "staged version : $ver" }
+            if ($ver) { Info "staged version : $ver   (from $($inf.Name))" }
 
             if ($exe) {
-                $exePath = $exe.FullName
-                AskLater "Install the matching driver by running '$($exe.Name)'?" {
-                    Start-Process -FilePath $exePath -Wait
-                } "It opens its own installer. Reboot afterwards."
+                # One question per installer, WLAN first. GetNewClosure is
+                # load bearing: without it every queued action would run
+                # against whichever file the loop ended on, which is a bug
+                # this toolkit has already shipped once.
+                foreach ($x in ($exes | Select-Object -First 3)) {
+                    $xPath = $x.FullName
+                    $xName = $x.Name
+                    AskLater "Install '$xName'?" ([scriptblock]::Create("Start-Process -FilePath '$xPath' -Wait").GetNewClosure()) `
+                        'It opens its own installer window. Reboot when both are done.'
+                }
             } elseif ($inf) {
                 $infPath = $inf.FullName
                 AskLater "Install the matching driver from '$($inf.Name)' now?" {
