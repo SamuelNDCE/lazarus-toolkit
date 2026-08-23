@@ -680,9 +680,16 @@ if (-not (Test-Path $driverDir)) {
                 try { $ids += ([regex]::Matches([System.IO.File]::ReadAllText($i.FullName), 'DEV_[0-9A-Fa-f]{4}') | ForEach-Object { $_.Value.ToUpper() }) } catch { }
             }
             $ids = $ids | Sort-Object -Unique
+            # Three outcomes, not two. A folder of packed .exe installers
+            # has no .inf to read until it is extracted, and calling that
+            # "a different chip" is a false statement about a package that
+            # might be exactly right. Say which of the three it is.
             if ($devId -and ($ids -contains $devId)) {
                 OK "$($p.Name)  matches this card"
                 if (-not $match) { $match = $p }
+            } elseif (-not $ids -or -not $ids.Count) {
+                Info "$($p.Name)  packed installers, contents not readable until extracted"
+                Info "                 open the folder and run the right one by hand"
             } elseif ($devId) {
                 Info "$($p.Name)  is for a different chip, skipped"
             } else {
