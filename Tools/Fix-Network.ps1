@@ -631,30 +631,105 @@ if ($wifi) {
     Warn 'No adapter present, so no driver version could be read.'
 }
 
-# A driver staged onto the stick is used if it is there. This is the
-# offline path: download it once, drop it in, and every future run on
-# any machine can offer it without a connection.
+# ---------------------------------------------------------------------
+#  STAGED DRIVERS, MATCHED BY HARDWARE ID
+#
+#  The first version of this offered the first .exe it found in the
+#  Drivers folder. That is dangerous on a stick that travels between
+#  machines, and it was immediately proved so: of the three MediaTek
+#  packages downloaded for this job, only ONE listed DEV_7902. The other
+#  two are for MT7925/7927/7935. Offering "the first installer" would
+#  have put a wrong-chip driver in front of the person fixing the
+#  laptop, twice out of three times.
+#
+#  So the adapter's own PCI device ID is read, and only a package whose
+#  .inf actually lists that ID is offered. A package that does not match
+#  is named and skipped rather than hidden, because "no driver staged"
+#  and "the staged one is for a different chip" are different problems.
+#
+#  It also has to handle INF-only packages. The correct package for this
+#  card has no .exe at all: it is an .inf plus .sys plus firmware blobs,
+#  installed with pnputil. Searching only for .exe found nothing in the
+#  one case that mattered.
+# ---------------------------------------------------------------------
 $driverDir = Join-Path $PSScriptRoot 'Drivers'
-$staged = $null
-if (Test-Path $driverDir) {
-    $staged = Get-ChildItem -Path $driverDir -Include '*.exe', '*.msi' -Recurse -ErrorAction SilentlyContinue |
-              Select-Object -First 5
+
+# PNPDeviceID looks like PCI\VEN_14C3&DEV_7902&SUBSYS_...  The DEV part
+# is the chip, and it is what an .inf matches on.
+$devId = $null
+if ($wifi) {
+    $pnp = Get-NetAdapter -Name $wifi.Name -ErrorAction SilentlyContinue | Select-Object -ExpandProperty PnPDeviceID -ErrorAction SilentlyContinue
+    if ($pnp -and $pnp -match '(DEV_[0-9A-Fa-f]{4})') { $devId = $Matches[1].ToUpper() }
 }
-if ($staged) {
-    OK "$($staged.Count) driver installer(s) staged on the stick"
-    foreach ($s in $staged) { Info "  $($s.Name)" }
-    $first = $staged | Select-Object -First 1
-    AskLater "Run the staged driver installer '$($first.Name)' now?" {
-        Start-Process -FilePath $first.FullName
-    } "It will open its own installer window. Reboot afterwards."
+if ($devId) { Info "this card's hardware id : $devId" }
+
+if (-not (Test-Path $driverDir)) {
+    Info 'No Drivers folder on the stick, so nothing could be offered offline.'
+    Info "To make this offline in future, create it and drop driver packages in:"
+    Info "  $driverDir"
 } else {
-    Info 'No driver staged on the stick.'
-    Info "To make this offline in future, download the WLAN and Bluetooth drivers"
-    Info "and drop them in:  $driverDir"
-    AskLater 'Open the ASUS download page for this model in a browser?' {
-        Start-Process $asusUrl
-    } "Get the MediaTek WLAN driver AND the MediaTek Bluetooth driver. ASUS says to update both together."
+    $pkgs = Get-ChildItem $driverDir -Directory -ErrorAction SilentlyContinue
+    if (-not $pkgs) {
+        Info "The Drivers folder is empty:  $driverDir"
+    } else {
+        $match = $null
+        foreach ($p in $pkgs) {
+            $infs = Get-ChildItem $p.FullName -Filter *.inf -Recurse -ErrorAction SilentlyContinue
+            $ids = @()
+            foreach ($i in $infs) {
+                try { $ids += ([regex]::Matches([System.IO.File]::ReadAllText($i.FullName), 'DEV_[0-9A-Fa-f]{4}') | ForEach-Object { $_.Value.ToUpper() }) } catch { }
+            }
+            $ids = $ids | Sort-Object -Unique
+            if ($devId -and ($ids -contains $devId)) {
+                OK "$($p.Name)  matches this card"
+                if (-not $match) { $match = $p }
+            } elseif ($devId) {
+                Info "$($p.Name)  is for a different chip, skipped"
+            } else {
+                Info "$($p.Name)  present, but this card's id is unknown so it was not matched"
+            }
+        }
+
+        if ($match) {
+            $inf = Get-ChildItem $match.FullName -Filter *.inf -Recurse -ErrorAction SilentlyContinue | Select-Object -First 1
+            $exe = Get-ChildItem $match.FullName -Include '*.exe', '*.msi' -Recurse -ErrorAction SilentlyContinue | Select-Object -First 1
+            $ver = $null
+            if ($inf) {
+                $dv = (Select-String -Path $inf.FullName -Pattern '^\s*DriverVer\s*=' -ErrorAction SilentlyContinue | Select-Object -First 1)
+                if ($dv) { $ver = ($dv.Line -replace '.*=\s*', '').Trim() }
+            }
+            if ($ver) { Info "staged version : $ver" }
+
+            if ($exe) {
+                $exePath = $exe.FullName
+                AskLater "Install the matching driver by running '$($exe.Name)'?" {
+                    Start-Process -FilePath $exePath -Wait
+                } "It opens its own installer. Reboot afterwards."
+            } elseif ($inf) {
+                $infPath = $inf.FullName
+                AskLater "Install the matching driver from '$($inf.Name)' now?" {
+                    Write-Host '         Installing with pnputil, this takes a few seconds...' -ForegroundColor DarkGray
+                    $r = & pnputil.exe /add-driver "$infPath" /install 2>&1
+                    foreach ($l in $r) { Write-Host "         $l" -ForegroundColor DarkGray }
+                    Write-Host '         Reboot to finish.' -ForegroundColor Yellow
+                } "This package has no installer, it is an .inf, so pnputil adds it to the driver store and installs it. The Wi-Fi will drop out briefly."
+            } else {
+                Warn "$($match.Name) matched but contains neither an installer nor an .inf"
+            }
+        } elseif ($devId) {
+            Warn 'No staged driver package matches this card.'
+            Info 'Nothing was offered, deliberately. Installing a driver for a'
+            Info 'different chip is worse than installing none.'
+        }
+    }
 }
+
+# The download page is always offered, staged driver or not: the staged
+# one may be older than what the vendor now ships, and the Bluetooth
+# driver is a separate download that ASUS says to update alongside.
+AskLater 'Open the ASUS download page for this model in a browser?' {
+    Start-Process $asusUrl
+} "For the newest WLAN driver, and the MediaTek Bluetooth driver, which is a separate download. ASUS says to update both together."
 
 # =====================================================================
 #  6. THE HEAVIER OPTIONS, ASKED AT THE END
