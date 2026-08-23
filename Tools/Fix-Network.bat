@@ -44,6 +44,29 @@ exit /b 1
 
 :run
 :: -------------------------------------------------------------------
+:: SOMETHING ON SCREEN BEFORE POWERSHELL LOADS.
+::
+:: powershell.exe -File takes a second or two to start, and Common.ps1
+:: is a 75 KB file to dot-source on top of that. For that whole window
+:: the console is blank, which is the exact shape this toolkit already
+:: learned gets read as "it froze" and closed.
+::
+:: A .bat cannot animate while it is blocked waiting on PowerShell, so
+:: this is a static banner rather than a spinner. The live spinner
+:: starts as soon as the script itself is running, which is what the
+:: banner is covering the gap until.
+:: -------------------------------------------------------------------
+echo.
+echo   ============================================================
+echo      FIX NETWORK
+echo      For a Wi-Fi adapter that disappears from Windows
+echo   ============================================================
+echo.
+echo      Starting up, this takes a few seconds...
+echo      The spinner appears once the checks begin.
+echo.
+
+:: -------------------------------------------------------------------
 :: Run in Windows Terminal when the machine has it.
 ::
 :: The legacy console host is what the Windows PowerShell profile still

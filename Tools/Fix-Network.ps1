@@ -68,6 +68,17 @@ try {
     Clear-Host
 } catch { }
 
+# FIRST THING ON SCREEN, before anything slow.
+#
+# The .bat prints a banner, but in the Windows Terminal branch that
+# banner goes to the old window and the new one opens blank. Common.ps1
+# is 75 KB to dot-source, so without this the first thing the user sees
+# is an empty console for a second or two. Deliberately placed after
+# Clear-Host, which would otherwise wipe it.
+Write-Host ''
+Write-Host '   FIX NETWORK   starting up...' -ForegroundColor Cyan
+Write-Host '   loading the shared toolkit library' -ForegroundColor DarkGray
+
 $Log = New-Object System.Collections.ArrayList
 
 # ---------------------------------------------------------------------
