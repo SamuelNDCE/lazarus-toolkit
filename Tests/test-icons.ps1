@@ -1,4 +1,4 @@
-﻿param([string]$Root)
+param([string]$Root)
 <#
  ICONS COME OUT OF THE TOOLS, NOT OUT OF THE REPO
 
@@ -201,22 +201,22 @@ var DATA = [
 
     # --- a script one level down, and an ISO, get nothing ------------
     #
-    # Setup\*.bat is the case that broke: seven entries, each one level
+    # A batch of one-level entries is the case that broke: each one level
     # inside a top-level folder, every one of them handed the same
     # Veyon installer icon. An .iso is worse still, because Windows
     # returns the identical generic disc image for every one.
     #
     # The invariant underneath both is asserted last and is the real
     # guard: NO TWO TOOLS MAY END UP WITH THE SAME PICTURE.
-    $setupDir = Join-Path $tmp 'Setup'
+    $setupDir = Join-Path $tmp 'Extra'
     New-Item -ItemType Directory -Path $setupDir -Force | Out-Null
-    Set-Content (Join-Path $setupDir 'Run-Setup.bat') '@echo off' -Encoding ASCII
+    Set-Content (Join-Path $setupDir 'Run-Thing.bat') '@echo off' -Encoding ASCII
     Copy-Item (Join-Path $env:WINDIR 'System32\notepad.exe') (Join-Path $setupDir 'veyon-setup.exe')
     Set-Content (Join-Path $tmp 'fake.iso') 'not really an iso' -Encoding ASCII
     @'
 var DATA = [
 ["Group", [
- ["Setup One","Setup\\Run-Setup.bat","purpose","desc","",""],
+ ["Extra One","Extra\\Run-Thing.bat","purpose","desc","",""],
  ["Some ISO","ISO\\fake.iso","purpose","desc","",""]
 ]]
 ];
@@ -230,7 +230,7 @@ var DATA = [
     # --- no two tools may share a picture -----------------------------
     #
     # The invariant that would have caught BOTH real bugs on its own:
-    # seven Setup entries showing one Veyon icon, and the health report
+    # several one-level entries showing one wrong icon, and the health report
     # showing OCCT's, were both "two tools, one picture".
     #
     # Run against a fixture of its own, with three genuinely different

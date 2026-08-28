@@ -16,8 +16,8 @@ if not exist "%~dp0Drivers" (
     echo   Expected: %~dp0Drivers
     echo.
     echo   Create it and drop driver packages in, one folder per
-    echo   package. Fix Network then matches them to the machine's
-    echo   own hardware id and offers only the one that fits.
+    echo   package. Health Report and Repair then matches them to the
+    echo   machine's own hardware id and offers only the one that fits.
     echo.
     pause
     exit /b 1

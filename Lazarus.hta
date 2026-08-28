@@ -1,4 +1,4 @@
-<html>
+﻿<html>
 <head>
 <meta http-equiv="X-UA-Compatible" content="IE=edge">
 <title>Lazarus</title>
@@ -297,7 +297,7 @@ var DATA = [
   "REMOVES drivers, it does not install them. Windows never deletes superseded drivers, so the DriverStore quietly grows to many GB of obsolete versions. This lists every package, flags the unused ones and deletes them. Use Snappy to install. Open source (GPL-2.0).","",""],
 
  ["Open Drivers Folder","Tools\\Open-Drivers.bat","Every driver stored on this stick",
-  "Opens the Drivers folder on the stick. One folder per package, kept per machine. Nothing runs: driver and BIOS installers are reached by looking at a folder, never by a single click on a menu. Fix Disappearing Wi-Fi matches these to the machine for you.","",""]
+  "Opens the Drivers folder on the stick. One folder per package, kept per machine. Nothing runs: driver and BIOS installers are reached by looking at a folder, never by a single click on a menu.","",""]
 ]],
 ["Network &amp; Remote", [
  ["WinSCP","Tools\\WinSCP\\portable\\WinSCP.exe","Move files to and from Linux boxes",
@@ -329,26 +329,6 @@ var DATA = [
  ["Rufus","Tools\\Rufus\\rufus-4.15p.exe","Write a bootable USB from an ISO",
   "Creates bootable installers and rescue media. Also the way to wipe and repartition a stubborn USB stick Windows refuses to format.","",""]
 ]],
-["Temporary", [
-
- ["1. Choose Build Options","Setup\\Choose-Build.bat","Pick once, then every laptop builds the same",
-  "DO THIS FIRST, once, before any laptop. Tick extra software to install, anything to uninstall from laptops already built, and whether to run a health report at the end. Every build then uses those answers and only asks for the two passwords. Safe to re-run.","temp",""],
- ["2. Club Laptop Build","Setup\\Run-Setup.bat","Provision a laptop for the coding club",
-  "The full club build: accounts, software, Chrome policy, AppLocker, auditing and desktop shortcuts, in one run. About 25 minutes. Checks the disk first and warns if it looks to be failing. Asks two passwords and whether this is the teacher laptop, then runs to the end.","temp","t-warn"],
- ["3. Check Club Build","Setup\\Verify-Club.bat","Check a built laptop and repair what drifted",
-  "Checks accounts, software, filtering, lockdown, auditing, and whether the teacher machine can reach this laptop. Installs what is ticked and missing, removes what is ticked for removal. Changes nothing until you say yes. Run on the first laptop before the rest.","temp",""],
- ["4. Gather Logs from Laptop","Setup\\Gather-Logs.bat","Bring a built laptop's logs onto the stick",
-  "Run this ON A BUILT LAPTOP to copy its build and check logs back onto the stick, filed under the machine name. A build run from a copy leaves its logs on that laptop, so without this they never come back for review. Copies only.","temp",""],
- ["5. Collect Machine Evidence","Setup\\Collect-Evidence.bat","What Windows and the firmware recorded",
-  "Run on a laptop that misbehaved: switched itself off, showed a firmware warning at boot, blue screened, or failed an install with no reason given. Collects HP Sure Start events, shutdowns, crashes, disk errors, installer failures and the battery. Read only.","temp",""],
- ["6. Repair Admin Tools","Setup\\Repair-AdminTools.bat","Fix the Admin Tools shortcuts on a laptop",
-  "Run on a laptop that is ALREADY BUILT if a desktop Admin Tools shortcut opens and closes instantly, or says it is not running as administrator. Refreshes the deployed tools from this stick and rebuilds the shortcuts so they elevate. Takes seconds, rebuilds nothing.","temp",""],
- ["7. Copy Setup to a Laptop","Setup\\Make-Portable.bat","Put the build folder on the machine itself",
-  "Copies the whole Setup folder to the laptop so the build can run without the stick plugged in, and verifies the copy by file list and total size rather than assuming it worked. Your saved build choices travel with it.","temp",""],
-
- ["Fix Disappearing Wi-Fi","Tools\\Fix-Network.bat","When Wi-Fi vanishes out of Settings",
-  "Run where the whole Wi-Fi section disappears from Settings and returns later. Stops Windows powering the radio down, turns off PCIe link power saving and Fast Startup, checks the driver against the one ASUS ships, and records every value before changing it.","temp","t-warn"]
-]],
 ["Boot ISOs", [
 
  ["Hiren's BootCD PE","ISO\\Windows\\HBCD_PE_x64.iso","Windows will not boot at all",
@@ -377,7 +357,6 @@ var TAGDEF = {
   "set"  : "A collection, not a single program. Opens a folder of tools.",
   "10 days" : "Expires 10 days after download and refuses to run rather than scanning with stale definitions. Re-download before a job.",
   "licence" : "Licensing caveat for commercial or paid client work. Read the description.",
-  "temp" : "For the job in hand, not part of the permanent repair kit. Delete the Setup folder when the batch is finished.",
   "found" : "Not in the launcher's own list. Found in the Tools folder and added automatically, so its category and description are guesses."
 };
 function tagTitle(tag){ return TAGDEF[tag] ? TAGDEF[tag] : ""; }

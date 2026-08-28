@@ -93,13 +93,13 @@ function Resolve-IconSource($full, $rel) {
     # that were caught by running this for real rather than by reading it:
     #
     #   Tools\Health-Report.bat   gave the health report OCCT's icon.
-    #   Setup\*.bat  (7 entries)  ALL gave themselves Veyon's installer
-    #                             icon, so seven different entries showed
-    #                             one identical wrong picture.
+    #   a batch of top-level *.bat  ALL gave themselves one unrelated
+    #   entries                     installer's icon, so several different
+    #                               entries showed one identical wrong picture.
     #
     # So depth decides it. "Tools\Firefox\run.bat" has a tool folder and
-    # is fine. "Setup\Run-Setup.bat" does not, and the honest answer for
-    # it is no icon at all.
+    # is fine. A bare "Folder\Thing.bat" does not, and the honest answer
+    # for it is no icon at all.
     $segments = @($rel -split '\\' | Where-Object { $_ })
     if ($segments.Count -lt 3) { return $null }
 

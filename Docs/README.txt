@@ -159,7 +159,7 @@ LAYOUT
   the next time anything is added.
 
 ================================================================
-WHAT IS ON IT  -  30 tools + 5 boot ISOs
+WHAT IS ON IT  -  31 tools + 5 boot ISOs
 ================================================================
 
   Every entry below is generated from the launcher's own table, so
@@ -235,11 +235,16 @@ HARDWARE DIAGNOSTICS (2)
       GPU model, memory type and vendor, BIOS version, PCIe link speed
       and live sensors.
 
-DRIVERS (2)
+DRIVERS (3)
 
   Display Driver Uninstaller  Fix graphics corruption a reinstall won't.
       Completely removes GPU drivers including registry entries and
       leftover files a normal uninstall leaves behind.
+
+  Open Drivers Folder         Every driver stored on this stick.
+      Opens the Drivers folder. One folder per package, kept per
+      machine. Nothing runs: driver and BIOS installers are reached
+      by looking at a folder, never by one click on a menu.
 
   DriverStore Explorer        Purge old driver packages.
       REMOVES drivers, it does not install them.
@@ -260,7 +265,7 @@ NETWORK & REMOTE (4)
       A hijacked or simply broken browser is normal on an infected
       machine, and you still need to fetch a driver or a tool.
 
-FILES & UTILITIES (10)
+FILES & UTILITIES (9)
 
   Double Commander            Move and compare files properly.
       Dual-pane file manager: two folders side by side, batch rename,
@@ -320,12 +325,6 @@ them from the Ventoy menu.
 
   MemTest86+ 8.10             Prove whether RAM is faulty.
       Boots without an OS so it can test all memory.
-
-ALSO ON THE STICK
-
-  7 laptop-provisioning scripts under Setup\, grouped as
-  "Temporary" in the launcher. They are for one job, and that folder
-  is meant to be deleted when the job is done.
 
 ================================================================
 ADDING YOUR OWN TOOLS
@@ -612,7 +611,7 @@ KNOWN GAPS
   who remembers the old text needs to know which half was wrong.
 
   WHAT ITS ABSENCE COSTS YOU, and what it does not:
-    Club laptop builds   NOTHING. Setup-Laptop.ps1 runs
+    Provisioning a machine NOTHING. The build script runs
                          DISM /Online /Cleanup-Image /RestoreHealth
                          bare, repairing from Windows Update, and says
                          so in its own output: "no ISO needed".

@@ -1,4 +1,4 @@
-# Lazarus Toolkit
+﻿# Lazarus Toolkit
 
 **A portable Windows repair kit that runs off a USB stick and installs nothing on the machine you
 are fixing.** Find out what is wrong with a PC, repair it, strip out what should not be there, and
@@ -307,7 +307,7 @@ what it finds depends on it and `chkdsk` must not be run twice over one pass.
 | Reset the network stack | yes | seconds, then reboot |
 | Clear out temp files | yes | under 3 min |
 
-**`SFC → DISM → SFC`** is on by default, with DISM skipped unless SFC finds damage, because DISM
+**`SFC â†’ DISM â†’ SFC`** is on by default, with DISM skipped unless SFC finds damage, because DISM
 adds 10 to 40 minutes and a clean SFC usually means there is nothing for it to do. Untick that
 sub-option when a machine misbehaves but SFC insists it is fine, which is the one case a clean SFC
 cannot rule out. **DISM is what checks the component store**, and SFC compares Windows *against*
@@ -448,8 +448,7 @@ with nothing downloaded.
 
 ## What is on the stick
 
-Thirty utilities and five boot ISOs, in the order the launcher shows them, plus a
-[Temporary group](#temporary-the-setup-scripts) the launcher keeps separate from both.
+Thirty utilities and five boot ISOs, in the order the launcher shows them.
 
 **The Notes column is the licence position**, because "free" and "free for paid work" are not the
 same thing and the difference matters if you charge for repairs. Full detail, with the wording each
@@ -526,21 +525,6 @@ Not launchable from the stick. Reboot and pick them from the Ventoy menu.
 | **SystemRescue** | Repair Linux filesystems and partitions | Open source |
 | **Rescuezilla** | Image or clone a whole drive before a risky repair | Open source |
 | **MemTest86+** | Prove whether RAM is faulty, with no OS holding any of it | GPL-2.0 |
-
-### Temporary: the Setup scripts
-
-**The launcher keeps a third group, `Temporary`, separate from the tools and the ISOs on purpose.**
-It holds seven laptop-provisioning scripts under `Setup\`: choose the build options once, provision
-a machine, verify a built machine and repair whatever drifted, gather its logs, collect firmware and
-Windows evidence, and copy the build folder onto the machine itself.
-
-They are there for **one job**, and `Setup\` is meant to be deleted when that job is done. That is
-the entire reason they are not filed under Files and utilities: a tool you keep and a script you are
-about to throw away should not sit in the same list, because the second kind quietly becomes
-permanent if nothing marks it as temporary.
-
-`Setup\` is gitignored, like `Tools\` and `ISO\`, so a clone shows these greyed out as missing.
-They are our own scripts, not third-party.
 
 ## Adding your own tools
 

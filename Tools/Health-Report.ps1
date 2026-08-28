@@ -7,7 +7,7 @@
  Two jobs:
    REPAIR   - a before/after record of what a machine was like, which
               is also what you show a client.
-   HANDOVER - proof a club laptop is fit to give to a child: battery
+   HANDOVER - proof a laptop is fit to hand to someone else: battery
               not worn out, disk not dying, Windows activated,
               safeguarding actually switched on.
 
@@ -804,7 +804,7 @@ if ($lic) {
     Line 'Status' $stat
     Line 'Channel' $lic.ProductKeyChannel
     if ($lic.LicenseStatus -eq 1) { Good 'Windows is properly activated' }
-    else { Fail "Windows is NOT activated ($stat). A club laptop should be activated before handover." }
+    else { Fail "Windows is NOT activated ($stat). A machine should be activated before handover." }
 }
 
 }   # end of the 'activation' section
@@ -1451,7 +1451,7 @@ else {
         Write-Host ''
         foreach ($s in $sus) { Warn "worth checking: $($s.Name)  ($($s.Publisher))" }
         Info 'Bundled browsers, toolbars and "optimiser" tools arrive with other installers.'
-        Info 'A second browser also bypasses every Chrome policy on a club laptop.'
+        Info 'A second browser also bypasses every Chrome policy on the machine.'
         Info 'Run a Malwarebytes scan and remove anything nobody chose to install.'
     }
 }

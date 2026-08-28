@@ -64,7 +64,7 @@ foreach ($b in $batFiles) {
 Check "all $($batFiles.Count) of our batch launcher target(s) exist" ($dangling.Count -eq 0) ($dangling -join ', ')
 
 Section 'NOTHING LEFT BEHIND'
-# Deliberately narrow. Setup\Logs is where the club build tooling is
+# Deliberately narrow. Setup\Logs is where job-specific tooling is
 # SUPPOSED to write, and a filename merely containing "test" caught
 # test-tables.js, which is a real part of the launcher's own tooling.
 # Junk means scratch and backup files, not "every file with an
@@ -129,7 +129,7 @@ Section 'CREDENTIALS ON THE STICK'
 # standing reminder of what is on the stick and what to do before it
 # leaves your hands, because that is the moment it stops being fine.
 $secretFiles = @(
-    @{ Path = Join-Path $root 'Setup\build-secrets.ps1'; What = 'the club account password, in plain text' }
+    @{ Path = Join-Path $root 'Setup\build-secrets.ps1'; What = 'a build account password, in plain text' }
 )
 $found = @($secretFiles | Where-Object { Test-Path $_.Path })
 if ($found.Count) {
@@ -148,7 +148,7 @@ if ($found.Count) {
 # somewhere it was never meant to go. build-secrets.ps1 is deliberate
 # and can be deleted in one action; a password copied into Config.ps1 or
 # a text file survives that deletion and nobody would know.
-$credPat = 'password\s*=\s*[''"][^''"]{6,}|ClubAccountPassword\s*=\s*[''"]'
+$credPat = 'password\s*=\s*[''"][^''"]{6,}|\w*AccountPassword\s*=\s*[''"]'
 $strays = @(Get-ChildItem $root -Recurse -File -ErrorAction SilentlyContinue |
             Where-Object { $_.Extension -in '.ps1','.bat','.txt','.json','.md' -and $_.Length -lt 2MB } |
             Where-Object { $_.FullName -notmatch '\\Setup\\build-secrets\.ps1$' } |
