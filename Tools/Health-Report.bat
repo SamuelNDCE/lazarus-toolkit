@@ -13,6 +13,41 @@ color 0F
 
 cd /d "%~dp0"
 
+:: -------------------------------------------------------------------
+:: THE TOOLS ARE NOT STANDALONE FILES.
+::
+:: Saving Health-Report and Repair-Health out of the GitHub web view
+:: without Common.ps1 beside them does not fail cleanly. Verified by
+:: deleting Common.ps1 and running it: nothing crashed, every hardware
+:: check silently returned nothing, and the report called a machine
+:: with working WMI faulty. A confident wrong diagnosis is worse than
+:: no diagnosis, so this refuses to start instead.
+::
+:: Checked here as well as inside the script, because on Windows 11
+:: the launcher hands off to Windows Terminal, and a script that dies
+:: before it draws anything takes its own error message with it.
+:: -------------------------------------------------------------------
+if not exist "%~dp0Health-Report.ps1" goto :incomplete
+if not exist "%~dp0Common.ps1" goto :incomplete
+goto :ready
+
+:incomplete
+echo.
+echo   ------------------------------------------------------------
+echo    This folder is missing files the tool needs.
+echo.
+echo    Folder: %~dp0
+echo.
+echo    These scripts are not standalone. Download the whole
+echo    repository as a ZIP and extract it, or copy the entire
+echo    Tools folder, rather than saving files one at a time.
+echo   ------------------------------------------------------------
+echo.
+pause
+exit /b 1
+
+:ready
+
 net session >nul 2>&1
 if %errorlevel% equ 0 goto :run
 

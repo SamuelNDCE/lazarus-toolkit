@@ -52,6 +52,82 @@ param(
 
 $ErrorActionPreference = 'Continue'
 
+# ---------------------------------------------------------------------
+#  NEVER CLOSE ON AN ERROR WITHOUT SHOWING IT
+#
+#  A terminating error skips every line below it, including the final
+#  "Press Enter to close" that is the only thing holding the window
+#  open. The launcher hands off to Windows Terminal with `start`, so the
+#  tab dies the instant powershell.exe exits and takes the red text with
+#  it. Reported from the field twice, in the same words both times: "it
+#  showed a bunch of red text and closed before I could read it."
+#
+#  Verified rather than assumed: powershell.exe -File returns 1 and
+#  never reaches Read-Host when a statement throws.
+#
+#  This is the only thing standing between a crash and no information
+#  at all, so it is the first executable statement and depends on
+#  NOTHING: not Common.ps1, not a function of ours, not a variable.
+#
+#  It does not prompt when there is nobody there. -Unattended and a
+#  redirected stdin both mean a keypress will never come, and a run that
+#  waits forever for one is a hung task, not a finished one.
+# ---------------------------------------------------------------------
+trap {
+    Write-Host ''
+    Write-Host '   ============================================================' -ForegroundColor Red
+    Write-Host '    THIS TOOL STOPPED WITH AN ERROR' -ForegroundColor Red
+    Write-Host '   ============================================================' -ForegroundColor Red
+    Write-Host ''
+    Write-Host "    $($_.Exception.Message)" -ForegroundColor Red
+    if ($_.InvocationInfo) {
+        Write-Host ''
+        Write-Host "    Where: $(Split-Path $_.InvocationInfo.ScriptName -Leaf) line $($_.InvocationInfo.ScriptLineNumber)" -ForegroundColor DarkGray
+        if ($_.InvocationInfo.Line) { Write-Host "           $($_.InvocationInfo.Line.Trim())" -ForegroundColor DarkGray }
+    }
+    Write-Host ''
+    # Written down as well as shown. The person who can fix this is
+    # usually not the person standing in front of the machine, and a
+    # screenshot of a console is a poor way to send a stack trace.
+    try {
+        # Beside the tool on the stick, NOT in the machine's %TEMP%.
+        # A client's temp folder is not ours to leave files in, and a
+        # crash file dropped there is gone from us the moment the stick
+        # is unplugged and we walk away. %TEMP% survives only as the
+        # fallback for a stick that is read-only or write-protected.
+        $crashDir = $PSScriptRoot
+        try {
+            $probe = Join-Path $crashDir ".lz-write-test"
+            [IO.File]::WriteAllText($probe, "x")
+            Remove-Item $probe -Force -ErrorAction SilentlyContinue
+        } catch { $crashDir = $env:TEMP }
+        $crashFile = Join-Path $crashDir "lazarus-crash-$env:COMPUTERNAME-$(Get-Date -f 'yyyy-MM-dd_HHmmss').txt"
+        @(
+            "Tool      : $($MyInvocation.MyCommand.Name)"
+            "Machine   : $env:COMPUTERNAME"
+            "When      : $(Get-Date -f 'yyyy-MM-dd HH:mm:ss')"
+            "PowerShell: $($PSVersionTable.PSVersion)"
+            "OS build  : $([Environment]::OSVersion.Version)"
+            ''
+            ($_ | Out-String)
+            ($_.ScriptStackTrace)
+        ) -join "`r`n" | Set-Content $crashFile -Encoding UTF8
+        Write-Host "    Written to: $crashFile" -ForegroundColor DarkGray
+        Write-Host '    Send that file to whoever maintains this stick.' -ForegroundColor DarkGray
+        Write-Host ''
+    } catch { }
+    $nobodyThere = $Script:Unattended -or [Console]::IsInputRedirected
+    # A crash after a long scan means anything typed while it ran is
+    # still queued, and it would answer this prompt before it is drawn.
+    # Inlined rather than calling Clear-InputBuffer: this can fire
+    # before Common.ps1 has loaded, or because it never did.
+    if (-not $nobodyThere) {
+        try { $Host.UI.RawUI.FlushInputBuffer() } catch { }
+        Read-Host '    Press Enter to close' | Out-Null
+    }
+    exit 1
+}
+
 # --- console appearance ----------------------------------------------
 # Set on entry rather than by the caller: this can be started from the
 # Lazarus UI, the .bat, a desktop shortcut or an open console, and each

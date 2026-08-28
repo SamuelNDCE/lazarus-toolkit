@@ -46,6 +46,82 @@ param(
     [switch]$NoElevate
 )
 
+# ---------------------------------------------------------------------
+#  NEVER CLOSE ON AN ERROR WITHOUT SHOWING IT
+#
+#  A terminating error skips every line below it, including the final
+#  "Press Enter to close" that is the only thing holding the window
+#  open. The launcher hands off to Windows Terminal with `start`, so the
+#  tab dies the instant powershell.exe exits and takes the red text with
+#  it. Reported from the field twice, in the same words both times: "it
+#  showed a bunch of red text and closed before I could read it."
+#
+#  Verified rather than assumed: powershell.exe -File returns 1 and
+#  never reaches Read-Host when a statement throws.
+#
+#  This is the only thing standing between a crash and no information
+#  at all, so it is the first executable statement and depends on
+#  NOTHING: not Common.ps1, not a function of ours, not a variable.
+#
+#  It does not prompt when there is nobody there. -Unattended and a
+#  redirected stdin both mean a keypress will never come, and a run that
+#  waits forever for one is a hung task, not a finished one.
+# ---------------------------------------------------------------------
+trap {
+    Write-Host ''
+    Write-Host '   ============================================================' -ForegroundColor Red
+    Write-Host '    THIS TOOL STOPPED WITH AN ERROR' -ForegroundColor Red
+    Write-Host '   ============================================================' -ForegroundColor Red
+    Write-Host ''
+    Write-Host "    $($_.Exception.Message)" -ForegroundColor Red
+    if ($_.InvocationInfo) {
+        Write-Host ''
+        Write-Host "    Where: $(Split-Path $_.InvocationInfo.ScriptName -Leaf) line $($_.InvocationInfo.ScriptLineNumber)" -ForegroundColor DarkGray
+        if ($_.InvocationInfo.Line) { Write-Host "           $($_.InvocationInfo.Line.Trim())" -ForegroundColor DarkGray }
+    }
+    Write-Host ''
+    # Written down as well as shown. The person who can fix this is
+    # usually not the person standing in front of the machine, and a
+    # screenshot of a console is a poor way to send a stack trace.
+    try {
+        # Beside the tool on the stick, NOT in the machine's %TEMP%.
+        # A client's temp folder is not ours to leave files in, and a
+        # crash file dropped there is gone from us the moment the stick
+        # is unplugged and we walk away. %TEMP% survives only as the
+        # fallback for a stick that is read-only or write-protected.
+        $crashDir = $PSScriptRoot
+        try {
+            $probe = Join-Path $crashDir ".lz-write-test"
+            [IO.File]::WriteAllText($probe, "x")
+            Remove-Item $probe -Force -ErrorAction SilentlyContinue
+        } catch { $crashDir = $env:TEMP }
+        $crashFile = Join-Path $crashDir "lazarus-crash-$env:COMPUTERNAME-$(Get-Date -f 'yyyy-MM-dd_HHmmss').txt"
+        @(
+            "Tool      : $($MyInvocation.MyCommand.Name)"
+            "Machine   : $env:COMPUTERNAME"
+            "When      : $(Get-Date -f 'yyyy-MM-dd HH:mm:ss')"
+            "PowerShell: $($PSVersionTable.PSVersion)"
+            "OS build  : $([Environment]::OSVersion.Version)"
+            ''
+            ($_ | Out-String)
+            ($_.ScriptStackTrace)
+        ) -join "`r`n" | Set-Content $crashFile -Encoding UTF8
+        Write-Host "    Written to: $crashFile" -ForegroundColor DarkGray
+        Write-Host '    Send that file to whoever maintains this stick.' -ForegroundColor DarkGray
+        Write-Host ''
+    } catch { }
+    $nobodyThere = $Script:Unattended -or [Console]::IsInputRedirected
+    # A crash after a long scan means anything typed while it ran is
+    # still queued, and it would answer this prompt before it is drawn.
+    # Inlined rather than calling Clear-InputBuffer: this can fire
+    # before Common.ps1 has loaded, or because it never did.
+    if (-not $nobodyThere) {
+        try { $Host.UI.RawUI.FlushInputBuffer() } catch { }
+        Read-Host '    Press Enter to close' | Out-Null
+    }
+    exit 1
+}
+
 # SilentlyContinue is right for this script: it queries a lot of WMI that
 # legitimately fails on some machines, and a client watching a health
 # check does not need a screen of red for a battery class that does not
@@ -67,7 +143,41 @@ $bad  = [System.Collections.ArrayList]@()
 # Repair-Health rather than copied, because this report had no progress
 # indicator at all and sat silent on the slow WMI queries, which reads
 # as frozen. A second copy would drift.
-. (Join-Path $PSScriptRoot 'Common.ps1')
+# Common.ps1 is not optional here. Without it Spin, Show-Picker,
+# Clear-InputBuffer and the rest resolve to nothing, and because this
+# script runs at SilentlyContinue every one of those failures is
+# swallowed. Verified by deleting it and running: the tool did not
+# crash, it printed "WMI is not responding on this machine" and reached
+# a NOT READY verdict on a machine whose WMI was fine. A wrong diagnosis
+# delivered confidently is worse than no diagnosis, so this refuses.
+#
+# This is the shape a partial download takes. Copying Health-Report and
+# Repair-Health out of the repo without Common.ps1 beside them is the
+# reported failure, so name the fix rather than the symptom.
+$commonPath = Join-Path $PSScriptRoot 'Common.ps1'
+if (-not (Test-Path $commonPath)) {
+    Write-Host ''
+    Write-Host '   ============================================================' -ForegroundColor Red
+    Write-Host '    Common.ps1 is missing from this folder.' -ForegroundColor Red
+    Write-Host '   ============================================================' -ForegroundColor Red
+    Write-Host ''
+    Write-Host "    Looked in: $PSScriptRoot" -ForegroundColor DarkGray
+    Write-Host ''
+    Write-Host '    These tools are not standalone files. Copy the WHOLE Tools' -ForegroundColor Yellow
+    Write-Host '    folder, or download the repository as a ZIP and extract it,' -ForegroundColor Yellow
+    Write-Host '    rather than saving individual scripts out of GitHub.' -ForegroundColor Yellow
+    Write-Host ''
+    Write-Host '    Running without it does not fail cleanly: the hardware' -ForegroundColor DarkGray
+    Write-Host '    checks silently return nothing and the report then says the' -ForegroundColor DarkGray
+    Write-Host '    machine is faulty when it is not.' -ForegroundColor DarkGray
+    Write-Host ''
+    if (-not ($Unattended -or [Console]::IsInputRedirected)) {
+        try { $Host.UI.RawUI.FlushInputBuffer() } catch { }
+        Read-Host '    Press Enter to close' | Out-Null
+    }
+    exit 1
+}
+. $commonPath
 $Script:SpinLog = $out
 
 # Several checks here read things only an administrator can see: SMART

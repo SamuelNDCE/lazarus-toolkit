@@ -71,18 +71,25 @@ if ($cmd) {
 # code lines, rather than by requiring an exact adjacent line. A comment
 # or a Write-Host between the flush and the prompt is fine; the buffer
 # stays empty either way.
+# Two spellings count, because two of these prompts CANNOT call the
+# helper. The Common.ps1 guard and the crash trap both fire before
+# Common.ps1 is loaded, and one of them fires precisely because it
+# never loaded, so they flush the buffer directly. That is the same
+# flush; requiring the helper by name would have failed a correct fix.
+$FlushCall = 'Clear-InputBuffer|FlushInputBuffer\('
+
 function FlushedBefore($lines, $idx, $window = 4) {
     # Same line counts, but only when the flush really does come first.
     # `Clear-InputBuffer; Read-Host ...` is correct and idiomatic for a
     # one-line guarded prompt; the reverse order would pass a naive
     # substring test while emptying the queue AFTER reading from it.
     $self = $lines[$idx]
-    if ($self -match 'Clear-InputBuffer' -and
-        $self.IndexOf('Clear-InputBuffer') -lt $self.IndexOf('Read-Host')) { return $true }
+    if ($self -match $FlushCall -and
+        [regex]::Match($self, $FlushCall).Index -lt $self.IndexOf('Read-Host')) { return $true }
 
     $start = [Math]::Max(0, $idx - $window)
     for ($n = $start; $n -lt $idx; $n++) {
-        if ($lines[$n] -match 'Clear-InputBuffer') { return $true }
+        if ($lines[$n] -match $FlushCall) { return $true }
     }
     return $false
 }
