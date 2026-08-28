@@ -44,6 +44,31 @@ param(
 
 $ErrorActionPreference = 'Continue'
 
+# ---------------------------------------------------------------------
+#  NEVER CALL exit IN THIS FILE.
+#
+#  The headline way to run this is `irm ... | iex`, and iex executes the
+#  script INSIDE the caller's own session rather than in a child process.
+#  So `exit` does not end the script, it ends their PowerShell, and the
+#  window shuts. That happened on the SUCCESS path too, because the last
+#  line of this file was `exit $code`: a completed install closed the
+#  terminal before anyone could read what it had just told them.
+#
+#  Reported as "it runs a bunch of stuff, then it closes", which reads
+#  as a crash and is the opposite of one.
+#
+#  Verified rather than reasoned about. Under iex:
+#      exit    stops the script, KILLS the session
+#      break   stops the script, KILLS the session
+#      return  stops the script, session survives
+#  So every early exit below is `return`, and the exit code travels in
+#  $LASTEXITCODE the way a caller expects.
+#
+#  $PSCommandPath is empty under iex and set when the file is run
+#  directly, which is how the one real `exit` at the bottom is guarded.
+# ---------------------------------------------------------------------
+$RanFromFile = -not [string]::IsNullOrWhiteSpace($PSCommandPath)
+
 $Owner = 'SamuelNDCE'
 $Repo  = 'lazarus-toolkit'
 
@@ -157,7 +182,10 @@ Say-Info "Staging: $work"
 Write-Host ''
 
 try { New-Item -ItemType Directory -Path $work -Force -ErrorAction Stop | Out-Null }
-catch { Say-Fail "could not create a staging folder: $($_.Exception.Message)"; exit 1 }
+catch {
+    Say-Fail "could not create a staging folder: $($_.Exception.Message)"
+    $global:LASTEXITCODE = 1; return
+}
 
 # --- Download ---------------------------------------------------------
 # WebClient rather than Invoke-WebRequest: on Windows PowerShell 5.1
@@ -178,12 +206,12 @@ if ($ok -ne $true) {
     Say-Info 'Check the machine is online, then try again. To install without'
     Say-Info 'a download, clone the repo and run Tools\Install.bat.'
     Remove-Item $work -Recurse -Force -ErrorAction SilentlyContinue
-    exit 1
+    $global:LASTEXITCODE = 1; return
 }
 if (-not (Test-Path $zip)) {
     Say-Fail 'the download reported success but no file arrived'
     Remove-Item $work -Recurse -Force -ErrorAction SilentlyContinue
-    exit 1
+    $global:LASTEXITCODE = 1; return
 }
 Say-Info ("{0:N0} KB downloaded" -f ((Get-Item $zip).Length / 1KB))
 
@@ -199,7 +227,7 @@ $ok = Invoke-Watched -Label 'unpacking' -TimeoutSeconds 120 -Argument @($zip, $w
 if ($ok -ne $true) {
     Say-Fail "unpacking failed: $(if ($ok) { $ok } else { 'no response' })"
     Say-Info "The zip is at $zip if you want to open it by hand."
-    exit 1
+    $global:LASTEXITCODE = 1; return
 }
 
 # GitHub names the extracted folder <repo>-<ref>, but a ref with a slash
@@ -210,7 +238,7 @@ $root = @(Get-ChildItem $work -Directory -ErrorAction SilentlyContinue |
 if (-not $root.Count) {
     Say-Fail 'the download unpacked, but Tools\Install.ps1 is not in it'
     Say-Info "Look in $work yourself. Nothing was installed."
-    exit 1
+    $global:LASTEXITCODE = 1; return
 }
 $installer = Join-Path $root[0].FullName 'Tools\Install.ps1'
 Say-Good 'toolkit unpacked'
@@ -242,4 +270,7 @@ if ($KeepFiles) {
     if (Test-Path $work) { Say-Info "Could not clear $work. It is only a temp folder; delete it whenever." }
 }
 
-exit $code
+# Set the code either way, so a caller that checks $LASTEXITCODE still
+# gets the truth, then only really exit when this was run as a file.
+$global:LASTEXITCODE = $code
+if ($RanFromFile) { exit $code }
