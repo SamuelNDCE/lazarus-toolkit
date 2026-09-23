@@ -136,9 +136,21 @@ below](#what-is-on-the-stick)**, grouped the way the launcher groups it.
 irm https://raw.githubusercontent.com/SamuelNDCE/lazarus-toolkit/main/install.ps1 | iex
 ```
 
-That is the whole install. It takes a few seconds and asks nothing.
+That installs it and **runs it straight away**, so there is no second step. Windows asks for
+administrator, the report opens in its own window, and when you close that window you are asked
+whether to keep the tool or remove it from the PC again. Either way it tells you how to get back
+to it. Saved reports are never deleted by removing the tool.
 
-**Afterwards you can start it three ways**, whichever you find first:
+Only want the install, with no run and no question? Add `-NoRun`:
+
+```powershell
+& ([scriptblock]::Create((irm https://raw.githubusercontent.com/SamuelNDCE/lazarus-toolkit/main/install.ps1))) -NoRun
+```
+
+This run-then-offer-to-remove behaviour is for the one-liner only. The USB stick and
+`Tools\Install.bat` still just install.
+
+**If you keep it, you can start it three ways** afterwards, whichever you find first:
 
 | | |
 |---|---|
