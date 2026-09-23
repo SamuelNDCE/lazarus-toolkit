@@ -823,6 +823,7 @@ function Start-StallWatch {
                     Say "    XX  $tool has written nothing for $age minutes. It is almost certainly stuck." 'Red'
                     Say '        This is a Windows fault, not a fault in this tool. Press Ctrl+C,' 'Red'
                     Say '        reboot, and run this again. Nothing has been half-applied.' 'Red'
+                    Say '        If it stops again, this tool cannot fix that.' 'Red'
                 } elseif ($age -ge $warnM -and $lastWarn -eq 0) {
                     $lastWarn = $age
                     [Console]::WriteLine('')
@@ -843,7 +844,12 @@ function Start-StallWatch {
 
 # Named wrappers, so a call site reads as what it is watching.
 function Start-DismWatchdog {
-    param([int]$WarnMinutes = 10, [int]$DeadMinutes = 25)
+    # 30, not 25: DISM RestoreHealth can sit on one percentage for well over
+    # twenty minutes while it is genuinely still repairing files. The banner
+    # DISM prints before it starts says the same number, and the two must
+    # agree, or the tool tells someone to give up at a different time than
+    # it told them to wait until.
+    param([int]$WarnMinutes = 10, [int]$DeadMinutes = 30)
     Start-StallWatch -LogPath (Join-Path $env:WINDIR 'Logs\DISM\dism.log') -Tool 'DISM' `
                      -WarnMinutes $WarnMinutes -DeadMinutes $DeadMinutes
 }
@@ -940,8 +946,9 @@ if (On '1') {
         Write-Host '           various points. It is repairing files when it does that.' -ForegroundColor DarkGray
         Write-Host '           Do not close this window.' -ForegroundColor DarkGray
         Write-Host '           It needs the internet: Windows Update is its default source.' -ForegroundColor DarkGray
-        Write-Host '           If the number has not moved at all in 20 minutes it is genuinely' -ForegroundColor DarkGray
-        Write-Host '           stuck: press Ctrl+C, reboot, and run this again.' -ForegroundColor DarkGray
+        Write-Host '           If the number has not moved at all in 30 minutes it is stuck:' -ForegroundColor DarkGray
+        Write-Host '           press Ctrl+C, reboot, and run this again. If it stops again,' -ForegroundColor DarkGray
+        Write-Host '           this tool cannot fix that.' -ForegroundColor DarkGray
         Write-Host ''
         $t0 = Get-Date
         $wd = Start-DismWatchdog
