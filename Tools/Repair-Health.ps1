@@ -820,16 +820,19 @@ function Start-StallWatch {
                 if ($age -ge $deadM -and $lastWarn -lt $deadM) {
                     $lastWarn = $age
                     [Console]::WriteLine('')
-                    Say "    XX  $tool has written nothing for $age minutes. It is almost certainly stuck." 'Red'
-                    Say '        This is a Windows fault, not a fault in this tool. Press Ctrl+C,' 'Red'
-                    Say '        reboot, and run this again. Nothing has been half-applied.' 'Red'
-                    Say '        If it stops again, this tool cannot fix that.' 'Red'
+                    Say "    XX  $tool has written nothing for $age minutes." 'Red'
+                    Say '        Look at its percentage. If the numbers are still moving, that is' 'Red'
+                    Say '        perfectly normal: leave it alone, it is working.' 'Red'
+                    Say '        If the numbers have not moved either, it might be broken. Press' 'Red'
+                    Say '        Ctrl+C, reboot, and run this again. Nothing has been half-applied.' 'Red'
+                    Say '        If it stops again, that is a Windows fault this tool cannot fix.' 'Red'
                 } elseif ($age -ge $warnM -and $lastWarn -eq 0) {
                     $lastWarn = $age
                     [Console]::WriteLine('')
                     Say "    !!  $tool has written nothing to its log for $age minutes." 'Yellow'
-                    Say '        It may still be working. If its percentage has not moved either,' 'Yellow'
-                    Say "        give it until $deadM minutes and then treat it as stuck." 'Yellow'
+                    Say '        It may still be working. If the numbers are moving, that is' 'Yellow'
+                    Say '        perfectly normal. If they have not moved either, give it until' 'Yellow'
+                    Say "        $deadM minutes and then it might be broken." 'Yellow'
                 }
             } catch { }
         }
@@ -885,7 +888,7 @@ if (On '1') {
         'SFC and DISM show their own percentage below.'
         'DISM especially will sit on one number for many minutes and'
         'look frozen. That is normal and it happens on most machines.'
-        'If it really has stopped, this tool says so on its own.'
+        'If it may have stopped, this tool tells you what to check.'
         'DO NOT CLOSE THIS WINDOW.'
     )
     Write-Host ''
@@ -946,9 +949,10 @@ if (On '1') {
         Write-Host '           various points. It is repairing files when it does that.' -ForegroundColor DarkGray
         Write-Host '           Do not close this window.' -ForegroundColor DarkGray
         Write-Host '           It needs the internet: Windows Update is its default source.' -ForegroundColor DarkGray
-        Write-Host '           If the number has not moved at all in 30 minutes it is stuck:' -ForegroundColor DarkGray
-        Write-Host '           press Ctrl+C, reboot, and run this again. If it stops again,' -ForegroundColor DarkGray
-        Write-Host '           this tool cannot fix that.' -ForegroundColor DarkGray
+        Write-Host '           If the numbers are moving, it is perfectly normal, however slow.' -ForegroundColor DarkGray
+        Write-Host '           If the numbers have not moved AND nothing is written for 30' -ForegroundColor DarkGray
+        Write-Host '           minutes, it might be broken: press Ctrl+C, reboot, and run this' -ForegroundColor DarkGray
+        Write-Host '           again. If it stops again, this tool cannot fix that.' -ForegroundColor DarkGray
         Write-Host ''
         $t0 = Get-Date
         $wd = Start-DismWatchdog

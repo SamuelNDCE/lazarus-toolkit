@@ -616,7 +616,7 @@ left behind, and the stick still takes a write.
 |---|---|---|
 | Every hardware section blank, run takes forever | WMI is wedged on that PC | The tool says so in a red box within 15 seconds and skips the WMI-only sections. Reboot; or `net stop winmgmt` then `net start winmgmt`; or `winmgmt /salvagerepository` |
 | Display frozen, nothing moving | You clicked in the window and started a text selection, which blocks all output | Press **Enter** or **Esc**. The tools disable this at startup, but if it happens on a console they could not configure, that is the fix |
-| DISM parked on one percentage | Normal, for a while. It genuinely pauses while repairing files | Wait. At 10 minutes of log silence it warns; at 25 it says it is stuck. Then Ctrl+C, reboot, run again |
+| DISM parked on one percentage | Normal, for a while. It genuinely pauses while repairing files | Wait. At 10 minutes of log silence it warns; at 30 it says it might be broken, but only if the numbers have stopped moving too. If they are moving, it is perfectly normal. Otherwise Ctrl+C, reboot, run again |
 | "Repairs can half-apply" warning | A reboot is already pending | Reboot first. A pending reboot is the most common cause of DISM hanging forever |
 | A `.bat` flashes and vanishes on a locked-down PC | AppLocker killed it before it could elevate | Use the Start menu shortcut, which carries the run-as-admin flag and is not evaluated by AppLocker |
 | Serial says "not set by the manufacturer" | The board reports a placeholder, common on custom desktops | Use the sticker on the case or the board |

@@ -87,7 +87,7 @@ Write-Output 'Real stall detection (this takes about 2.5 minutes; it needs real 
 Write-Output ''
 if (-not (RunCase 'WARN path: log backdated 2 min, WarnMinutes=1, DeadMinutes=5' 2 1 5 'has written nothing to its log for')) { $fail++ }
 Write-Output ''
-if (-not (RunCase 'DEAD path: log backdated 4 min, WarnMinutes=1, DeadMinutes=2' 4 1 2 'is almost certainly stuck')) { $fail++ }
+if (-not (RunCase 'DEAD path: log backdated 4 min, WarnMinutes=1, DeadMinutes=2' 4 1 2 'it might be broken')) { $fail++ }
 
 Remove-Item $innerPath -ErrorAction SilentlyContinue
 
