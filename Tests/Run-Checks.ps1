@@ -256,6 +256,15 @@ if (Test-Path $retryTest) {
     Check 'retry test present' $false 'Tests\test-retry.ps1 is missing'
 }
 
+$sfcTest = Join-Path $PSScriptRoot 'test-sfc-verdict.ps1'
+if (Test-Path $sfcTest) {
+    & $sfcTest *>$null
+    Check 'SFC verdict: a repair is never reported as clean' ($LASTEXITCODE -eq 0) `
+          'run Tests\test-sfc-verdict.ps1 for the detail'
+} else {
+    Check 'SFC verdict test present' $false 'Tests\test-sfc-verdict.ps1 is missing'
+}
+
 Section 'THE PICKER BOTH TOOLS SHARE'
 # Show-Picker moved into Common.ps1 so the health report can ask "which
 # sections?" with the same interface Repair-Health uses for "which

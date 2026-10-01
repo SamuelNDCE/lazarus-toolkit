@@ -249,7 +249,7 @@ function Add-Detail($Title, [string[]]$Lines) {
 # a fresh runspace that does not inherit this script's functions, which
 # is the reason the read was left bare originally. Only the READ goes in
 # there; the filtering stays out here, where the functions exist.
-function Get-CbsSrLines {
+function Get-CbsSrLines([datetime]$Since) {
     $cbs = Join-Path $env:WINDIR 'Logs\CBS\CBS.log'
     if (-not (Test-Path $cbs)) { return $null }
     $lines = Spin 'reading what SFC recorded in CBS.log' {
@@ -265,7 +265,30 @@ function Get-CbsSrLines {
     # missing on a machine where it was plainly there. The unary comma
     # wraps the array so one object is emitted and the emptiness survives.
     if ($null -eq $lines) { return , @() }
+    # Keep only what THIS pass wrote. The 8000 line tail spans earlier
+    # passes and earlier runs, so without this a repair from last week
+    # shows up in today's clean verdict, or today's repair is outvoted by
+    # clean lines from a later pass. CBS.log timestamps are local time.
+    if ($Since) {
+        $floor = $Since.AddSeconds(-2)
+        $lines = @($lines | Where-Object {
+            $t = [datetime]::MinValue
+            $_.Length -ge 19 -and
+            [datetime]::TryParseExact($_.Substring(0, 19), 'yyyy-MM-dd HH:mm:ss',
+                [Globalization.CultureInfo]::InvariantCulture,
+                [Globalization.DateTimeStyles]::None, [ref]$t) -and $t -ge $floor
+        })
+    }
     return , @($lines)
+}
+
+# The [SR] lines a pass with NOTHING to repair writes. Checked against the
+# real CBS.log and its archived copies on a healthy machine: every clean
+# pass is exactly these three, and nothing else carries the [SR] tag.
+# Anything outside this list means SFC found or touched something.
+function Test-SrRoutine([string]$Line) {
+    $msg = $Line -replace '^.*\[SR\]\s*', ''
+    return [bool]($msg -match '^(Beginning Verify and Repair transaction|Verifying \d+ components|Verify complete)\s*$')
 }
 
 function Get-SfcDetail($SrLines) {
@@ -279,9 +302,9 @@ function Get-SfcDetail($SrLines) {
     #
     # Those lines are not worthless, they are just not worth thirty lines.
     # They get counted into one sentence below instead.
-    $keep = @($SrLines | Where-Object {
-        $_ -match 'Cannot repair|Repairing corrupted|successfully repaired|is corrupt|could not be repaired'
-    } | Select-Object -Last 30)
+    # Everything that is NOT one of the three routine lines, so a repair
+    # is shown in whatever words Windows used for it.
+    $keep = @($SrLines | Where-Object { -not (Test-SrRoutine $_) } | Select-Object -Last 30)
 
     if ($keep.Count) { return $keep | ForEach-Object { ($_ -replace '^.*\[SR\]\s*', '') } }
 
@@ -359,10 +382,17 @@ function Get-ChkdskDetail($Since) {
 # not say clearly is reported as unknown rather than guessed at.
 function Get-SfcVerdict($SrLines) {
     if ($null -eq $SrLines -or -not $SrLines.Count) { return 'unknown' }
-    $txt = ($SrLines | Select-Object -Last 80) -join "`n"
-    if ($txt -match 'Cannot repair member file')                      { return 'stuck' }
-    if ($txt -match 'Repairing corrupted file|successfully repaired')  { return 'repaired' }
-    if ($txt -match 'Verify complete|No errors detected')              { return 'clean' }
+    $txt = $SrLines -join "`n"
+    if ($txt -match 'Cannot repair member file') { return 'stuck' }
+    # Clean is the ABSENCE of anything unusual, not the presence of a
+    # phrase. This used to list the wording of a repair and call anything
+    # else clean, so a repair worded differently was reported as "no
+    # integrity violations" and DISM was skipped, directly under SFC's own
+    # "found corrupt files and successfully repaired them". Any [SR] line
+    # beyond the routine three now counts as damage touched, which errs
+    # towards running DISM rather than skipping it.
+    if (@($SrLines | Where-Object { -not (Test-SrRoutine $_) }).Count) { return 'repaired' }
+    if ($txt -match 'Verify complete') { return 'clean' }
     return 'unknown'
 }
 
@@ -911,7 +941,7 @@ if (On '1') {
     # Its output went to the console and nowhere else, so recover the
     # findings from CBS.log into the report. One read, feeding both the
     # verdict and the detail.
-    $sr1  = Get-CbsSrLines
+    $sr1  = Get-CbsSrLines $t0
     $sfc1 = Get-SfcVerdict $sr1
     Add-Detail 'SFC pass 1, from CBS.log:' (Get-SfcDetail $sr1)
 
@@ -978,7 +1008,7 @@ if (On '1') {
         Stop-StallWatch $sfcW
         Write-Host ''
         Info "SFC pass 2 finished at $(Get-Date -f 'HH:mm:ss'), took $(Mins $t0)"
-        $sr2  = Get-CbsSrLines
+        $sr2  = Get-CbsSrLines $t0
         $sfc2 = Get-SfcVerdict $sr2
         Add-Detail 'SFC pass 2, from CBS.log:' (Get-SfcDetail $sr2)
         # "Repaired" only if something was actually repaired.
