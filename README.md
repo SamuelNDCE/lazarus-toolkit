@@ -30,17 +30,21 @@ put back what should. Any Windows 10 or 11 machine, yours or somebody else's.
 | | |
 |---|---|
 | **Diagnose** | One run tells you the machine, its faults, and how serious each one is. Battery wear, disk health, RAM, drivers, activation, BitLocker, crashes, failed updates |
-| **Repair** | Thirteen repairs using Windows' own tools: SFC, DISM, chkdsk, Windows Update, driver installs, each with a time estimate and a restore point offered first |
+| **Repair** | A menu of repairs using Windows' own tools: SFC, DISM, chkdsk, Windows Update, driver installs, each with a time estimate and a restore point offered first |
 | **Remove** | Bloatware, adware, hijacked browsers, superseded drivers, and the leftovers a vendor's own uninstaller abandons |
 | **Recover** | Deleted files, unreadable disks, Linux and NAS volumes Windows cannot see, and machines that will not boot at all |
 
 ## Two halves. Both flagships, and neither needs the other
 
-**1. Our own tools, written from scratch.** Three entries on this stick are ours, Apache 2.0, no
+**1. My own tools, written from scratch.** Three entries on my stick are mine, Apache 2.0, no
 third party involved: **[Health Report and Repair](#health-report-and-repair)**, **Restore Point**
-and **Activity Log**. They verify and repair Windows using nothing but data Windows already records
-and commands Windows already ships. No bundled driver updater, no registry cleaner, nothing
-downloaded at runtime, nothing sent anywhere.
+and **Activity Log**. They use nothing but data Windows already records and commands Windows
+already ships. No bundled driver updater, no registry cleaner, nothing downloaded at runtime,
+nothing sent anywhere.
+
+**Only Health Report and Repair, with its helper scripts, is in this repository today.** Restore
+Point and Activity Log are launcher entries that live on the stick and are not published here yet,
+so a clone does not contain them.
 
 **Health Report and Repair is the one to reach for first.** One command, ninety seconds, and you
 know whether the machine in front of you is worth keeping and what is broken. Then it offers to fix
@@ -60,14 +64,15 @@ notes at the bottom say which.
 
 # Take as much or as little as you want
 
-**These three ways of taking it are independent.** Each works on its own, and none needs the others.
+**These four ways of taking it are independent.** Each works on its own, and none needs the others.
 Most people want the first.
 
 | | You get | You do |
 |---|---|---|
-| **1. Health Report only** | The flagship tool. Diagnose and repair a PC using what Windows already has | Run one line. Nothing else is downloaded, ever |
-| **2. The launcher, and nothing in it** | The UI, the categories, the search, the admin toggle, the eject check | Clone the repo. Add whichever tools you actually want, one folder each |
-| **3. The full kit** | The launcher plus the 30 utilities and 5 boot ISOs listed below | Fetch each tool from its own publisher. Around 8 GB on a 32 GB stick |
+| **1. Health Report only, installed** | The flagship tool. Diagnose and repair a PC using what Windows already has | Run one line. Nothing else is downloaded, ever |
+| **2. The tools only, as files** | The `Tools\` folder and nothing else: no launcher, no stick layout, no docs, no tests | Clone just that folder. Read it, run it, copy it anywhere |
+| **3. The launcher, and nothing in it** | The UI, the categories, the search, the admin toggle, the eject check | Clone the repo. Add whichever tools you actually want, one folder each |
+| **4. The full kit** | The launcher plus the 30 utilities and 5 boot ISOs listed below | Fetch each tool from its own publisher. Around 8 GB on a 32 GB stick |
 
 ### 1. Just the health report
 
@@ -81,7 +86,52 @@ No stick, no launcher, no third-party anything. It installs per-user, needs no a
 install, and asks for administrator only when you run it. Full detail in
 [Health Report and Repair](#health-report-and-repair).
 
-### 2. Just the launcher, then add your own tools
+### 2. Just the tools, without the launcher
+
+If you want the scripts themselves and not the interface, clone only the `Tools\` folder. This
+fetches no launcher, no screenshots, no tests and no docs, only what is in `Tools\`:
+
+```powershell
+git clone --depth 1 --filter=blob:none --no-checkout https://github.com/SamuelNDCE/lazarus-toolkit.git lazarus-tools
+```
+
+```powershell
+git -C lazarus-tools sparse-checkout set --no-cone '/Tools/'
+```
+
+```powershell
+git -C lazarus-tools checkout
+```
+
+You end up with one folder, `lazarus-tools\Tools\`, holding the Health Report and Repair tool and
+its helpers. It needs nothing from the rest of the repo, so you can run it where it is or copy
+`Tools\` anywhere:
+
+```powershell
+.\lazarus-tools\Tools\Health-Report.bat
+```
+
+The same Tools folder as a plain download, with no git involved, is **Code > Download ZIP** on the
+repository page, then copy out `Tools\`.
+
+What is in it, and which parts only make sense with the launcher or the stick:
+
+| File | What it is | Needs the launcher or stick? |
+|---|---|---|
+| `Health-Report.ps1` and `.bat` | The health report | No |
+| `Repair-Health.ps1` | The repair menu, started from the report | No |
+| `Common.ps1` | Shared code, including the menu picker. Both tools load it | No |
+| `Collect-ToolLogs.ps1` | Copies the logs other tools leave behind into one folder | No |
+| `Clear-Reports.ps1` | Clears saved reports | No |
+| `Install.ps1` and `.bat`, `Uninstall.ps1` | Per-user install and removal | No |
+| `Show-ConsoleFacts.ps1` | Asks the console what it supports, for debugging the menus | No |
+| `Get-Icons.ps1` | Extracts launcher icons from tool binaries | **Yes**, it writes to the launcher's `Icons\` |
+| `Open-Drivers.bat` | Opens a `Drivers` folder next to it | **Yes**, it expects the stick's layout |
+
+Keep `Common.ps1` beside the scripts that use it: the report, the repairs, the installer and the
+log collector all load it from their own folder.
+
+### 3. Just the launcher, then add your own tools
 
 If you want the interface but not our opinion about which tools belong on it:
 
@@ -98,7 +148,7 @@ launchable, with its own icon pulled out of its binary. See
 Health Report and Repair still works immediately in this mode, because it is ours and it is
 already in the clone.
 
-### 3. Only the few tools you actually use
+### 4. Only the few tools you actually use
 
 There is nothing to configure for this. The launcher lists what the table says should exist and
 greys out what is not there, so a stick with six tools on it is not a broken stick, it is a stick
@@ -121,10 +171,10 @@ below](#what-is-on-the-stick)**, grouped the way the launcher groups it.
 - **Tells you what is wrong with it:** battery wear, SMART disk health, broken drivers *ranked
   CRITICAL to LOW*, activation channel, BitLocker, firewall, crashes, failed updates.
 - **Gives you a verdict:** ready to hand over, usable with notes, or not ready.
-- **Then offers to fix it:** 13 repairs using Windows' own tools, each with a time estimate and a
-  restore point offered first. Everything that changes the machine is off by default, apart from
+- **Then offers to fix it:** a menu of repairs using Windows' own tools, each with a time estimate
+  and a restore point offered first. Everything that changes the machine is off by default, apart from
   the standard SFC repair, which is the one you almost always want.
-- **Collects every log the job left behind:** 25 locations across Windows, your repairs and any
+- **Collects every log the job left behind:** 26 locations across Windows, your repairs and any
   antivirus tools that ran, into one dated folder.
 - **Never sends anything anywhere.** See below.
 
@@ -292,38 +342,33 @@ health-report -NoElevate             # deliberately run as a standard user
 ## The repairs
 
 Chosen the same way. **Nothing is assumed.** Anything that modifies the machine is tagged
-`CHANGES` and offers a restore point first. All of them are **off by default** except the standard
-SFC repair, which is ticked because it is the one you almost always want and it skips DISM unless
-SFC actually finds damage. The menu shows a time estimate and a plain description for whatever is
+`CHANGES` and offers a restore point first. Everything that changes the machine is **off by default** except
+the standard SFC repair, which is ticked because it is the one you almost always want and it skips
+DISM unless SFC actually finds damage. The menu shows a time estimate and a plain description for whatever is
 highlighted.
 
-**Everything in this menu changes the machine.** The read-only checks that used to live here,
-the event log sweep and the reliability history, are report sections now: they collect what
-Windows already recorded and repair nothing, so a repair menu was the wrong place for them. A
-menu called "repair" whose entries mostly do not repair anything trains you to skim it, and the
-entries that *do* change a machine are the ones that must never be skimmed.
+Some entries are read-only checks and are ticked by default, because they cannot hurt anything.
+Every entry that changes the machine is tagged `CHANGES`. The menu is not a pure list of repairs on
+purpose: the disk check is read-only and stays here because the repair that fixes what it finds
+depends on it, and `chkdsk` must not be run twice over one pass.
 
-The one exception is the disk check, which is read-only and stays, because the repair that fixes
-what it finds depends on it and `chkdsk` must not be run twice over one pass.
-
-| Repair | Changes the PC | Roughly |
+| Entry | Changes the PC | Roughly |
 |---|---|---|
 | Repair system files: SFC, then DISM, then SFC | yes | 2 to 30 min |
 | Check the disk for errors (online, no reboot) | no | 1 to 15 min |
-| Check whether this PC *can* install drivers (dry run) | no | under 3 min |
+| Read the drive's own SMART health data | no | seconds |
+| Find devices with missing or broken drivers | no | seconds |
 | Install driver updates from Windows Update | yes | 1 to 15 min |
+| Check whether this PC *can* install drivers (dry run) | no | under 3 min |
 | Also **repair** what the disk check finds | yes | varies |
-| Test the RAM | yes | reboot |
+| Clear out temp files | yes | under 3 min |
 | Reclaim disk space from old Windows updates | yes | 1 to 20 min |
 | Repair Windows Update | yes | under 3 min |
 | Reset the network stack | yes | seconds, then reboot |
-| Clear out temp files | yes | under 3 min |
+| Test the RAM | yes | reboot |
 
-**`SFC â†’ DISM â†’ SFC`** is on by default, with DISM skipped unless SFC finds damage, because DISM
-adds 10 to 40 minutes and a clean SFC usually means there is nothing for it to do. Untick that
-sub-option when a machine misbehaves but SFC insists it is fine, which is the one case a clean SFC
-cannot rule out. **DISM is what checks the component store**, and SFC compares Windows *against*
-that store, so a damaged store makes SFC report clean on a machine that plainly is not.
+There is also a sub-option under the first entry, *skip DISM unless SFC finds damage*, ticked by
+default.
 
 ### Clearing temp files: there are three temp folders, not two
 
@@ -354,7 +399,7 @@ back.
 .\Tools\Collect-ToolLogs.ps1               # copy it
 ```
 
-It sweeps 25 known locations:
+It sweeps 26 known locations:
 
 - **Your repairs:** CBS.log and older CBS logs, dism.log and older DISM logs
 - **Servicing and update:** the Windows Update client, update medic, SIH sessions, feature-update
@@ -476,14 +521,14 @@ vendor actually uses, is in [`Docs/LICENCES.txt`](Docs/LICENCES.txt).
 | **Process Monitor** | Live capture of every file, registry and network event | Sysinternals, same terms |
 | **TCPView** | See what a process is talking to | Sysinternals, same terms |
 | **ADWCleaner** | Strip adware, toolbars and hijacked browsers | Free and portable |
-| **Activity Log** | What has been run on a machine, even with auditing off | Ours, Apache 2.0 |
+| **Activity Log** | What has been run on a machine, even with auditing off | Mine, Apache 2.0. On the stick only, not in this repo yet |
 
 ### Drive health and recovery
 
 | Tool | What it is for | Notes |
 |---|---|---|
-| **Health Report and Repair** | Full checkup, then fixes what it found | Ours, Apache 2.0 |
-| **Restore Point** | A rollback point before you change anything | Ours, Apache 2.0 |
+| **Health Report and Repair** | Full checkup, then fixes what it found | Mine, Apache 2.0. In this repo |
+| **Restore Point** | A rollback point before you change anything | Mine, Apache 2.0. On the stick only, not in this repo yet |
 | **CrystalDiskInfo** | SMART health per drive, one colour-coded verdict | MIT |
 | **QPhotoRec** | Recover deleted files by signature, even after a format | Open source |
 | **Linux Reader** | Read ext4, ZFS, XFS, Btrfs and APFS volumes from Windows | Freeware, closed source |
@@ -583,7 +628,7 @@ artwork to draw.
 ```
 
 `Icons\` is a cache and is gitignored. The only committed icons are the three for Health Report,
-Restore Point and Activity Log, which are our own scripts and have no binary to read.
+Restore Point and Activity Log, which are my own scripts and have no binary to read.
 
 **4. Check it before trusting it:** `node Docs\validate.js .` verifies every path exists, every
 icon resolves, and no field is over length. It also lists tool folders on disk that are missing
@@ -835,5 +880,5 @@ That is a reading of published licence text, not legal advice.
 
 ---
 
-Built by [Perpetual Technologies](https://perpetualtechnologies.co.uk). Issues and pull requests
-welcome.
+Built by Samuel ([@SamuelNDCE](https://github.com/SamuelNDCE)). A personal project. Issues and pull
+requests welcome.
